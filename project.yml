@@ -40,10 +40,35 @@ targets:
         SUPPORTS_MACCATALYST: NO
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
 
+  CaptureKitTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/CaptureKitTests
+    dependencies:
+      - target: CaptureKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.wanghao.capturekit.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/CaptureKit.app/Contents/MacOS/CaptureKit
+        BUNDLE_LOADER: $(TEST_HOST)
+
 schemes:
+  # 纯 app scheme：本地日常构建（规避本机 Xcode 26.6 测试 target 规划挂死，见进度文档）
   CaptureKit:
     build:
       targets:
         CaptureKit: all
     run:
       config: Debug
+  # 测试 scheme：CI 全量构建 + 测试
+  CaptureKitTests:
+    build:
+      targets:
+        CaptureKit: all
+        CaptureKitTests: [test]
+    test:
+      config: Debug
+      targets:
+        - CaptureKitTests
