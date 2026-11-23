@@ -35,6 +35,10 @@ final class CaptureCoordinator {
         self.overlay = CaptureOverlayController()
         // 截图流程展示顶部模式胶囊（截图/滚动/录屏/文字识别）
         overlay.showsModePanel = true
+        // 内联 OCR：截图保持打开，识别结果以独立窗口展示（钉钉行为）
+        overlay.onInlineOCR = { [weak self] rect in
+            self?.runInlineOCR(rect: rect)
+        }
         overlay.onFinish = { [weak self] result in
             self?.handleOverlayResult(result)
         }
@@ -174,25 +178,7 @@ final class CaptureCoordinator {
 
         case .recognizeRegion(let rect):
             // 选区 OCR：捕获 → Vision 识别 → 结果窗口展示（不自动关闭，钉钉行为）
-            guard !isCapturing else { return }
-            isCapturing = true
-            Task { [weak self] in
-                defer { self?.isCapturing = false }
-                guard let self else { return }
-                do {
-                    let content = try await self.engine.shareableContent()
-                    let output = try await self.engine.captureRegion(
-                        rect,
-                        content: content,
-                        excludeOwnWindows: self.settings.settings.capture.excludeOwnWindows
-                    )
-                    self.onRecordScreenshot?(output.image)
-                    let text = try await OCRService.recognizeText(in: output.image)
-                    OCRResultPanelController.shared.show(text: text, anchorRect: rect)
-                } catch {
-                    self.report(error)
-                }
-            }
+            runInlineOCR(rect: rect)
 
         case .regionAnnotated(let rect, let annotations):
             // 选区内直接标注：捕获 → 标注缩放到像素坐标 → 统一管线合成 → 复制
@@ -282,6 +268,30 @@ final class CaptureCoordinator {
             onEditImage?(output.image)
         }
         Log.capture.info("Capture delivered (\(output.image.width)×\(output.image.height), action=\(action, privacy: .public))")
+    }
+
+    // MARK: - 内联 OCR（截图保持打开）
+
+    /// 选区文字识别：不关闭截图，结果以独立窗口展示（钉钉行为）。
+    private func runInlineOCR(rect: CGRect) {
+        guard !isCapturing else { return }
+        isCapturing = true
+        Task { [weak self] in
+            defer { self?.isCapturing = false }
+            guard let self else { return }
+            do {
+                let content = try await self.engine.shareableContent()
+                let output = try await self.engine.captureRegion(
+                    rect,
+                    content: content,
+                    excludeOwnWindows: self.settings.settings.capture.excludeOwnWindows
+                )
+                let text = try await OCRService.recognizeText(in: output.image)
+                OCRResultPanelController.shared.show(text: text, anchorRect: rect)
+            } catch {
+                self.report(error)
+            }
+        }
     }
 
     // MARK: - 权限与错误

@@ -40,7 +40,8 @@ final class OCRResultPanelController {
             )
             newPanel.title = "文字识别结果"
             newPanel.isReleasedWhenClosed = false
-            newPanel.level = .floating
+            // 层级高于截图 Overlay（screenSaver）：内联 OCR 时截图保持打开
+            newPanel.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
             newPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             newPanel.contentView = container
             newPanel.standardWindowButton(.zoomButton)?.isHidden = true

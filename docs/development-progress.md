@@ -516,3 +516,11 @@ Esc 直接取消；文字输入为 Overlay 内嵌 NSTextField（复用已验证�
 打字时手一动就触发提交收起，字打不进去（自动化测试鼠标不动，测不出来）。
 修正为钉钉语义：鼠标移出**框选区域**才自动提交；选区内移动不打断输入。
 CGEvent 回归：打字时模拟人手晃动 → 字段保持焦点 → 撤销按钮可点。
+
+## OCR 内联化：识别不退出截图（2026-11-24，第十二轮反馈）
+
+钉钉行为对齐：OCR 时截图保持打开。工具栏/右键/模式胶囊的识别文字均改为内联路径
+（overlay.onInlineOCR → CaptureCoordinator.runInlineOCR：捕获选区 → Vision 识别 →
+结果窗展示），不再走 finish/recognizeRegion。模式胶囊「文字识别」选完区识别后自动
+回到截图态（工具栏恢复）。结果窗层级提到 screenSaver+1（高于截图遮罩）。
+CGEvent 回归：OCR 后 overlay/工具栏全部存活，撤销按钮仍可点。

@@ -66,6 +66,9 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
     /// 仅 CaptureCoordinator 的区域截图流程开启；复用 Overlay 的其他协调器保持原流程。
     var showsModePanel = false
 
+    /// 内联 OCR（不关闭截图，钉钉行为）：捕获选区 → 识别 → 结果窗展示
+    var onInlineOCR: ((CGRect) -> Void)?
+
     /// 展示期间是否允许再次 present（防重入）
     private(set) var isPresented = false
 
@@ -143,8 +146,9 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
             self.overlaySelectionDidChange()
         }
         toolbarPanel.onRecognizeText = { [weak self] in
-            guard let selection = self?.model.selection else { return }
-            self?.finish(.recognizeRegion(selection))
+            guard let self, let selection = self.model.selection else { return }
+            // 内联 OCR：截图保持打开（钉钉行为）
+            self.onInlineOCR?(selection)
         }
         toolbarPanel.onScrollCapture = { [weak self] in
             guard let selection = self?.model.selection else { return }
@@ -169,7 +173,13 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
             guard let self else { return }
             self.model.captureIntent = intent
             // 已有选区时切换意图 → 立即按新意图执行
-            if intent != .screenshot, self.model.selection != nil, !self.model.isInteracting {
+            if intent == .ocr, self.model.selection != nil, !self.model.isInteracting {
+                // 文字识别不退出截图
+                self.intentFiredSelection = self.model.selection
+                self.onInlineOCR?(self.model.selection!)
+                self.model.captureIntent = .screenshot
+                self.updateToolbar()
+            } else if intent != .screenshot, self.model.selection != nil, !self.model.isInteracting {
                 self.finishByIntent()
             }
         }
@@ -261,14 +271,21 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
         for view in views { view.needsDisplay = true }
         updateToolbar()
 
-        // 非截图意图（滚动/录屏/文字识别）：选区确定后只执行一次（此后标注等变化不再触发）
+        // 非截图意图：选区确定后只执行一次（此后标注等变化不再触发）
         if showsModePanel,
            model.captureIntent != .screenshot,
            model.selection != nil,
            !model.isInteracting, !model.isAnnotateDrafting,
            model.selection != intentFiredSelection {
             intentFiredSelection = model.selection
-            finishByIntent()
+            if model.captureIntent == .ocr {
+                // 文字识别不退出截图（钉钉行为）：识别后回到截图态
+                onInlineOCR?(model.selection!)
+                model.captureIntent = .screenshot
+                updateToolbar()
+            } else {
+                finishByIntent()
+            }
         }
     }
 
@@ -538,7 +555,7 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
     @objc private func menuSave() { finish(.region(model.selection ?? .zero, action: .save)) }
     @objc private func menuRecognize() {
         guard let selection = model.selection else { return }
-        finish(.recognizeRegion(selection))
+        onInlineOCR?(selection)
     }
     @objc private func menuRecordVideo() {
         guard let selection = model.selection else { return }
