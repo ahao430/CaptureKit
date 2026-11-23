@@ -565,3 +565,14 @@ CGEvent 回归：OCR 后 overlay/工具栏全部存活，撤销按钮仍可点�
   `deliver(_:save:)` 复制走 `ClipboardWriter` + toast、保存走 `SavePanelPresenter`；
   `onStitched` 语义改为「结果被采纳 → 历史入库」，AppEnvironment 不再代弹保存面板
 - 帧数上限触发时改为进入复核态（不再直接交付）
+
+## v0.1.6 发布（2026-11-24）
+
+v0.1.5 之后的长截图重构与修补：
+
+- 长截图钉钉化：选区中央 ▶ 开始；会话控制条（自动滚动 / 帧数）；鼠标靠边滚动（`ScrollEdgeDriver`）
+- 结束方式：停止 / 保存图片 / 取消 / ✓ 复制（不再强制保存面板、不再自动进编辑器、不再弹模态授权框）
+- 修复自动滚动时光标被拽回选区中心（`CGEvent.postToPid` 直投目标进程）
+- 工具栏：长截图图标更新、悬浮提示显示在按钮上方并放大、色圆与工具组拉开间距
+
+发布流程按 docs/releasing.md：打 tag v0.1.6 → release.yml 自动构建。

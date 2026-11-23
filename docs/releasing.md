@@ -9,7 +9,7 @@
     `HcFCIA2Y0EYHpiGz+hTIDYgDKC4rkbqTNcIRwYsWWG4=`
   - 私钥文件：`~/.config/capturekit/sparkle_ed25519_privkey.pem`
     **这是唯一副本，请异地备份。** 丢失后老版本无法验证新更新（只能换公钥重发并引导重装）。
-- [ ] **GitHub 仓库**：创建 `github.com/ahao430/CaptureKit` 并推送（当前全部代码尚未提交入库）。
+- [x] **GitHub 仓库**：`github.com/ahao430/CaptureKit`（main 分支持续推送，tag 触发发布）。
 - [x] **配置 Secret**（已完成，共 3 个）：
   - `SPARKLE_PRIVATE_KEY`：`cat ~/.config/capturekit/sparkle_ed25519_privkey.pem` 的完整内容（EdDSA appcast 签名）。
   - `MACOS_SIGNING_P12_B64`：`base64 < ~/.config/capturekit/signing/capturekit-signing.p12`（自签名证书，目的是让 TCC 授权跨版本保留，ADR-030；效果待实机确认）。
@@ -30,7 +30,7 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-release.yml 自动完成：Universal 构建 → 测试 → ad-hoc 签名 → DMG + 更新 zip → EdDSA 签名 appcast → 创建 GitHub Release 并上传 `CaptureKit.dmg` / `CaptureKit.zip` / `appcast.xml`。
+release.yml 自动完成：Universal 构建 → 测试 → 固定证书签名（`CaptureKit Developer`，ADR-030）→ DMG + 更新 zip → EdDSA 签名 appcast → 创建 GitHub Release 并上传 `CaptureKit.dmg` / `CaptureKit.zip` / `appcast.xml`。
 
 版本规范：tag = `vX.Y.Z`；`CFBundleVersion` 取 CI run number（自动递增，勿手填）。发布说明直接写在 tag annotation 或 Release 页（`generate_release_notes` 会自动生成增量对比）。
 
@@ -64,6 +64,6 @@ cat /tmp/appcast-dryrun/appcast.xml
 | CI 上 SPM 拉取 Sparkle 超时 | 重跑即可（GitHub 网络抖动）；持续失败检查 `exactVersion` 与网络策略 |
 | appcast 缺签名 | Secret `SPARKLE_PRIVATE_KEY` 未配置或内容有换行——value 必须与私钥文件内容逐字一致 |
 | 客户端「检查更新」报错 | 看 App 日志（Console.app 搜 SUUpdater）；常见：`SUPublicEDKey` 与私钥不配对、feed URL 404（首个 Release 未上传 appcast.xml） |
-| 升级后每次启动都要求重新授权屏幕录制 | v0.1.2 及更早是 ad-hoc 签名，授权留不住。先 `tccutil reset ScreenCapture com.wanghao.capturekit` 清掉旧条目，再安装 v0.1.4+ 并重新授权一次。若 v0.1.4+ 之后仍复现，说明自签名证书方案没有解决问题（ADR-030 的假设未被证实），需要重新排查 |
+| 升级后每次启动都要求重新授权屏幕录制 | v0.1.2 及更早是 ad-hoc 签名，授权留不住。先 `tccutil reset ScreenCapture com.wanghao.capturekit` 清掉旧条目，再安装 v0.1.4+ 并重新授权一次。v0.1.4 起固定证书方案已实机验证有效（含 v0.1.5 覆盖安装后授权保留）；若此后仍复现，先核对安装包签名是否为 `Authority=CaptureKit Developer`（`codesign -dvv`），再重新排查 |
 | 更新安装后被 Gatekeeper 拦截 | ADR-029 已知边界：重跑 `xattr -dr com.apple.quarantine /Applications/CaptureKit.app` |
 | 老版本收不到新更新 | 检查 `CFBundleVersion`（run number）是否严格递增——Sparkle 按 build 号比较 |
