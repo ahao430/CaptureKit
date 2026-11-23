@@ -85,7 +85,6 @@
 		C67756AE8FECE22AF4E72039 /* CarbonHotkeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 886226F502B226C6F6A9DF19 /* CarbonHotkeyCenter.swift */; };
 		C8A10ADD089B602EB9B1E1C4 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DBF06331D638DED0F757B9 /* AppEnvironment.swift */; };
 		CB4BF7FD9DD99F3BE85FA241 /* CaptureOverlayWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBCA8FE2B4E137DCBDA98C7 /* CaptureOverlayWindow.swift */; };
-		D0536E1A15DBC3894656EF54 /* OverlayTextEntryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E5C8D7004FEBBEE9B259F3C /* OverlayTextEntryPanel.swift */; };
 		D08E8376FD340DBF61ECC905 /* AnnotationCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B7E232BA3B5C6062616993D /* AnnotationCanvasView.swift */; };
 		D3D01F2D32B89C59590FE209 /* AnnotationInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F6C078927E3EB04DB604E6 /* AnnotationInspectorView.swift */; };
 		D81487B510D72AD707D22891 /* CaptureKitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7406CC981738E7D420ED1FF /* CaptureKitApp.swift */; };
@@ -127,7 +126,6 @@
 		092A707C67249D767D79385F /* CaptureResultToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureResultToast.swift; sourceTree = "<group>"; };
 		0A0C998FEDFAA20B2D18BFF1 /* CaptureKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CaptureKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0DE3239AFBE890973C7DCC38 /* ClipboardReading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardReading.swift; sourceTree = "<group>"; };
-		0E5C8D7004FEBBEE9B259F3C /* OverlayTextEntryPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayTextEntryPanel.swift; sourceTree = "<group>"; };
 		150780E6006D8160DC2CC317 /* PixelColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PixelColor.swift; sourceTree = "<group>"; };
 		152710ECD6743237485C9965 /* FrameExclusionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameExclusionTests.swift; sourceTree = "<group>"; };
 		155A8A67250E1AE5F016FF5D /* ContentItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentItem.swift; sourceTree = "<group>"; };
@@ -527,7 +525,6 @@
 				ECBCA8FE2B4E137DCBDA98C7 /* CaptureOverlayWindow.swift */,
 				B06A87493552F82A8E128138 /* OverlayModePanel.swift */,
 				07A4A8CAEE4F0E5AEA71847A /* OverlaySelectionModel.swift */,
-				0E5C8D7004FEBBEE9B259F3C /* OverlayTextEntryPanel.swift */,
 				150780E6006D8160DC2CC317 /* PixelColor.swift */,
 				C36FF723662C5DF540C66FDD /* SelectionToolbarPanel.swift */,
 			);
@@ -818,7 +815,6 @@
 				A421E4AFB6EC1730F08A134E /* OverlayAnnotationExporter.swift in Sources */,
 				6FB93D750AA5D2B6CB7FD2F1 /* OverlayModePanel.swift in Sources */,
 				9F5A30717F7F19D9FC16648E /* OverlaySelectionModel.swift in Sources */,
-				D0536E1A15DBC3894656EF54 /* OverlayTextEntryPanel.swift in Sources */,
 				5D342075B0F44055C8DAA7E2 /* PinnedImageManager.swift in Sources */,
 				13A9E2AECFA7B9D14AA273F1 /* PinnedImageMath.swift in Sources */,
 				B882518AA6A4B580F2A28EF2 /* PinnedImagePanelController.swift in Sources */,

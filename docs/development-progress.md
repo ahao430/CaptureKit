@@ -456,3 +456,15 @@ CaptureResultToast 增加 showText 纯文本变体（与图片 toast 共用定�
   `becomesKeyOnlyIfNeeded = false`
 - 编号/绘制工具点击选区外会触发「新建选区」→ 框选区域突变。修复：绘制工具激活时
   选区外点击一律忽略（与钉钉一致）
+
+## 文字输入彻底重构：内嵌 Overlay 窗口（2026-11-23，第六轮反馈）
+
+独立无边框 NSPanel 方案三轮未修利索（key window/first responder/激活状态多变量纠缠，
+用户实测仍无法输入且 Esc 失效）。放弃该方案：
+
+- 输入框直接挂到鼠标所在屏的 Overlay 视图上（NSTextField 子视图），
+  复用 Overlay 窗口已被验证的键盘链路（Enter/Esc/取色键一直正常）
+- NSTextFieldDelegate doCommandBy 拦截 Enter（提交）/ Esc（取消），不依赖
+  didEndEditing 的模糊语义；点击其他处提交并吞掉该次点击
+- Overlay present 时 NSApp.activate（热键触发路径的键盘保障）
+- 删除 OverlayTextEntryPanel；CaptureOverlayController 改为 NSObject 子类以实现 NSTextFieldDelegate

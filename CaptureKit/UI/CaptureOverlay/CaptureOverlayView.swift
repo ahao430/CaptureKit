@@ -18,6 +18,10 @@ protocol CaptureOverlayViewDelegate: AnyObject {
     func overlayRequestsContextMenu(at globalPoint: CGPoint)
     /// 标注模式下点击文字工具落点（弹出文字输入）
     func overlayRequestsTextAnnotation(at globalPoint: CGPoint)
+    /// 是否有正在编辑的文字输入框（Overlay 窗口内嵌）
+    func overlayTextEditingIsActive() -> Bool
+    /// 结束文字编辑（非空提交）
+    func overlayRequestsCommitTextEditing()
 }
 
 @MainActor
@@ -140,6 +144,12 @@ final class CaptureOverlayView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         let point = globalPoint(event)
+
+        // 文字编辑中：点击其他位置 = 提交并吞掉该次点击
+        if delegate?.overlayTextEditingIsActive() == true {
+            delegate?.overlayRequestsCommitTextEditing()
+            return
+        }
 
         // 绘制工具：选区内 → 直接作画；选区外 → 忽略（不重建选区，与钉钉一致）
         if let _ = model.activeTool {
@@ -305,6 +315,11 @@ final class CaptureOverlayView: NSView {
 
     override func rightMouseDown(with event: NSEvent) {
         let point = globalPoint(event)
+
+        // 文字编辑中：右键 = 提交后照常弹菜单
+        if delegate?.overlayTextEditingIsActive() == true {
+            delegate?.overlayRequestsCommitTextEditing()
+        }
         // 选区内右键 → 上下文菜单；选区外右键 → 清除选区（标注随选区一并丢弃）
         if model.selection?.insetBy(dx: -2, dy: -2).contains(point) == true {
             delegate?.overlayRequestsContextMenu(at: point)

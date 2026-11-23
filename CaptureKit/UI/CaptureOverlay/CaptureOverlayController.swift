@@ -10,7 +10,7 @@ import AppKit
 /// - 监听显示器配置变化，自动取消。
 /// - 通过 onFinish 一次性向 CaptureCoordinator 报告结果。
 @MainActor
-final class CaptureOverlayController: CaptureOverlayViewDelegate {
+final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTextFieldDelegate {
     enum Mode {
         case region
         case window
@@ -61,7 +61,6 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
     private let model = OverlaySelectionModel()
     private var toolbar: SelectionToolbarPanel?
     private var modePanel: OverlayModePanel?
-    private var textEntryPanel: OverlayTextEntryPanel?
 
     /// 是否展示顶部模式胶囊（截图/滚动/录屏/文字识别）。
     /// 仅 CaptureCoordinator 的区域截图流程开启；复用 Overlay 的其他协调器保持原流程。
@@ -86,6 +85,8 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
         guard !isPresented else { return }
         isPresented = true
         presentedMode = mode
+        // 激活 App：热键触发时 App 可能未激活，key window 收不到键盘（Enter/Esc/取色全失效）
+        NSApp.activate(ignoringOtherApps: true)
         model.selection = nil
         model.interaction = .none
         model.hint = mode.hint
@@ -214,12 +215,15 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
             NotificationCenter.default.removeObserver(observer)
             screenChangeObserver = nil
         }
+        // 文字编辑中：直接丢弃（不提交），移除输入框
+        if let editing = activeTextField {
+            activeTextField = nil
+            editing.field.removeFromSuperview()
+        }
         toolbar?.orderOut(nil)
         toolbar = nil
         modePanel?.orderOut(nil)
         modePanel = nil
-        textEntryPanel?.orderOut(nil)
-        textEntryPanel = nil
         for window in windows {
             window.orderOut(nil)
             window.contentView = nil
@@ -303,50 +307,99 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
         finishByIntent()
     }
 
+    // MARK: - 选区内文字输入（内嵌 NSTextField，复用 Overlay 窗口已验证的键盘链路）
+
+    /// 当前编辑中的文字输入框（挂在鼠标所在屏的 Overlay 视图上）
+    private var activeTextField: (field: NSTextField, view: CaptureOverlayView, localPoint: CGPoint)?
+
+    /// 是否有正在编辑的文字输入框。
+    func overlayTextEditingIsActive() -> Bool {
+        activeTextField != nil
+    }
+
+    /// 视图请求结束文字编辑（点击其他区域时；非空提交）。
+    func overlayRequestsCommitTextEditing() {
+        endTextEditing(commit: true)
+    }
+
     func overlayRequestsTextAnnotation(at globalPoint: CGPoint) {
         guard let selection = model.selection else { return }
+        // 已在编辑 → 先提交旧的
+        if activeTextField != nil {
+            endTextEditing(commit: true)
+        }
+        guard let view = views.first(where: { $0.screenFrame.contains(globalPoint) }) else { return }
         let local = CGPoint(
+            x: globalPoint.x - view.screenFrame.minX,
+            y: globalPoint.y - view.screenFrame.minY
+        )
+        let selectionLocal = CGPoint(
             x: globalPoint.x - selection.minX,
             y: globalPoint.y - selection.minY
         )
         let style = model.annotateStyle
 
-        let panel: OverlayTextEntryPanel
-        if let existing = textEntryPanel {
-            panel = existing
-        } else {
-            let created = OverlayTextEntryPanel()
-            textEntryPanel = created
-            panel = created
+        let field = NSTextField(frame: NSRect(
+            x: local.x,
+            y: local.y,
+            width: 240,
+            height: style.fontSize + 14
+        ))
+        field.font = .systemFont(ofSize: style.fontSize, weight: .semibold)
+        field.textColor = style.color.nsColor
+        field.placeholderString = "输入文字，Enter 确认 · Esc 取消"
+        field.bezelStyle = .roundedBezel
+        field.focusRingType = .none
+        field.wantsLayer = true
+        field.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.78).cgColor
+        field.layer?.cornerRadius = 6
+        field.delegate = self
+        view.addSubview(field)
+        activeTextField = (field, view, selectionLocal)
+
+        // Overlay 窗口已是 key（键盘链路已被 Enter/Esc/取色验证），直接接管 first responder
+        if let window = view.window {
+            window.makeFirstResponder(field)
         }
-        panel.onCommit = { [weak self] text in
-            guard let self, self.isPresented else { return }
-            self.model.annotations.append(Annotation(
-                type: .text,
-                geometry: .text(origin: local, string: text),
-                style: style
-            ))
-            self.restoreOverlayKeyWindow()
-            self.overlaySelectionDidChange()
-        }
-        panel.onCancel = { [weak self] in
-            self?.restoreOverlayKeyWindow()
-        }
-        panel.show(
-            at: CGPoint(x: globalPoint.x, y: globalPoint.y + 4),
-            fontSize: style.fontSize,
-            color: style.color
-        )
     }
 
-    /// 文字输入面板收起后，把键盘焦点还给鼠标所在屏的 Overlay 窗口。
-    private func restoreOverlayKeyWindow() {
-        let mouseLocation = NSEvent.mouseLocation
-        if let index = views.firstIndex(where: { $0.screenFrame.contains(mouseLocation) }) {
-            windows[index].makeKey()
-        } else {
-            windows.first?.makeKey()
+    /// 结束文字编辑（Enter = 提交非空文本；Esc / 点击其他处 = 非空提交、空丢弃）。
+    private func endTextEditing(commit: Bool) {
+        guard let editing = activeTextField else { return }
+        activeTextField = nil
+        let text = editing.field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        editing.field.removeFromSuperview()
+        editing.view.window?.makeFirstResponder(nil)
+
+        if commit, !text.isEmpty, let selection = model.selection {
+            model.annotations.append(Annotation(
+                type: .text,
+                geometry: .text(origin: editing.localPoint, string: text),
+                style: model.annotateStyle
+            ))
         }
+        overlaySelectionDidChange()
+    }
+
+    // MARK: - NSTextFieldDelegate（文字内嵌输入）
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        switch commandSelector {
+        case #selector(NSResponder.insertNewline(_:)):
+            endTextEditing(commit: true)
+            return true
+        case #selector(NSResponder.cancelOperation(_:)):
+            endTextEditing(commit: false)
+            return true
+        default:
+            return false
+        }
+    }
+
+    func controlTextDidEndEditing(_ obj: Notification) {
+        // 失焦（点击其他位置）统一走提交
+        guard activeTextField != nil else { return }
+        endTextEditing(commit: true)
     }
 
     func overlayDidRequestCopyColor(at globalPoint: CGPoint) {
