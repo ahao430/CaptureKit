@@ -83,6 +83,7 @@ final class AppEnvironment {
         // Translocation/quarantine 引导（ADR-030）：临时路径运行会让 TCC 授权反复失效
         TranslocationChecker.checkAndGuideIfNeeded()
         registerHotkeys()
+        warnExternalHotkeyConflictIfNeeded()
         clipboardMonitor.applySettings()
         startAutoClean()
         startUpdater()
@@ -362,6 +363,34 @@ final class AppEnvironment {
     }
 
     // MARK: - 快捷键
+
+    /// 外部快捷键占用提示（ADR-030 补充）：RegisterEventHotKey 对已占用组合静默成功，
+    /// 事件归先注册的应用（实测钉钉/微信占 ⇧⌘A 时本 app 无响应），只能提示用户改键。
+    /// 「不再提示」记 UserDefaults；用户改键后自然不再命中检测。
+    private func warnExternalHotkeyConflictIfNeeded() {
+        guard let conflictApp = HotkeyConflictChecker.externalConflictHint(
+            runningBundleIDs: NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier),
+            regionCapture: settings.settings.hotkeys.regionCapture
+        ) else { return }
+
+        let defaults = UserDefaults.standard
+        let skipKey = "com.wanghao.capturekit.suppressHotkeyConflictGuide"
+        guard !defaults.bool(forKey: skipKey) else {
+            Log.hotkey.info("External hotkey conflict detected (guide suppressed): \(conflictApp, privacy: .public)")
+            return
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "区域截图快捷键 ⇧⌘A 可能被 \(conflictApp) 占用"
+        alert.informativeText = "实测 macOS 对快捷键冲突不做拦截：同时运行时按键会发给先启动的应用，CaptureKit 可能无响应。可在 \(conflictApp) 设置中关闭其截图快捷键，或在 CaptureKit 设置 → 快捷键中改用其他组合。"
+        alert.addButton(withTitle: "知道了")
+        alert.addButton(withTitle: "不再提示")
+        if alert.runModal() == .alertSecondButtonReturn {
+            defaults.set(true, forKey: skipKey)
+        }
+        Log.hotkey.warning("External hotkey conflict guide shown: \(conflictApp, privacy: .public)")
+    }
 
     private func registerHotkeys() {
         let mapping = settings.settings.hotkeys.mapping

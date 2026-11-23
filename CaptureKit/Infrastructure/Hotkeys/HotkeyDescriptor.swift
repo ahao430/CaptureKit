@@ -162,4 +162,26 @@ enum HotkeyConflictChecker {
         }
         return result
     }
+
+    // MARK: - 外部应用占用检测（ADR-030 补充实证）
+
+    /// 已知默认占用 ⇧⌘A 截图键的常用应用（bundleID 前缀 → 显示名）。
+    /// 实证：RegisterEventHotKey 对已占用组合仍返回 noErr（事件归先注册者），
+    /// 注册层面无法检测，只能靠运行应用清单提示。
+    static let knownScreenshotApps: [(bundlePrefix: String, name: String)] = [
+        ("com.alibaba.DingTalk", "钉钉"),
+        ("com.tencent.xinWeChat", "微信"),
+    ]
+
+    /// 检测运行中的应用是否可能占用当前区域截图快捷键。
+    /// - Returns: 命中的应用显示名；nil 表示无已知冲突（或用户已改键）。
+    static func externalConflictHint(runningBundleIDs: [String], regionCapture: HotkeyDescriptor) -> String? {
+        guard regionCapture == .regionCapture() else { return nil }
+        for app in knownScreenshotApps {
+            if runningBundleIDs.contains(where: { $0.hasPrefix(app.bundlePrefix) }) {
+                return app.name
+            }
+        }
+        return nil
+    }
 }

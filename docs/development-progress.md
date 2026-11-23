@@ -352,3 +352,13 @@ Phase 5 批次 2 已完成：QuickAccessPanel（⌘⇧V：搜索/键盘导航/En
 另：主页完成双语（默认中文，导航 EN 切换，localStorage 记忆）；eyebrow 10px→12px、移动端 nav 压缩（隐藏下载按钮）修复审计必修。
 
 本地 161/161 测试通过。遗留观察项：v0.1.1 安装后请用户复测 ①②③；若 ⇧⌘H/⇧⌘V 仍异常需用户给出具体现象（无反应/弹窗/内容为空）。
+
+## 快捷键占用实证与提示（v0.1.3 后追加）
+
+用户反馈「快捷键拉起的截图是钉钉的」。本机实证（钉钉/微信运行中）：
+- `RegisterEventHotKey` 对已被占用的 ⇧⌘A **返回 noErr**——注册层面无法检测冲突，事件归先注册的应用；本 app 的注册"成功"但永不触发。
+- 这解释了此前的「快捷键截图正常」——响应的其实是钉钉，不是 CaptureKit。
+
+修复：`HotkeyConflictChecker.externalConflictHint`（纯函数 + 6 例单测）+ `AppEnvironment.warnExternalHotkeyConflictIfNeeded`（启动检测钉钉/微信运行且区域截图为默认 ⇧⌘A 时一次性弹窗建议改键，可「不再提示」）。161 → 167 测试。
+
+待办：草稿 v0.1.3 的 TCC 授权保留性需用户装机实测（决定稳定签名方案去留）；主分支改动待随下一版本发布。
