@@ -103,6 +103,8 @@ final class OverlaySelectionModel {
     var selectedAnnotationID: UUID?
     /// 标注拖动会话（拖动中的标注及其原始几何）
     var annotationDrag: (id: UUID, origin: AnnotationGeometry, dragOrigin: CGPoint)?
+    /// 待落点的文字标注（mouseUp 后再弹输入面板，避开 mouseDown 焦点竞争）
+    var pendingTextPoint: CGPoint?
 
     var hasSelection: Bool { selection != nil }
 

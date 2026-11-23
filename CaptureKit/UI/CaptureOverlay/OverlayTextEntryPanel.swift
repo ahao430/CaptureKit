@@ -59,6 +59,9 @@ final class OverlayTextEntryPanel: NSPanel, NSTextFieldDelegate {
 
         // 面板放在点击点上方（输入框底边对齐文本落点）
         setFrameOrigin(CGPoint(x: max(4, globalPoint.x), y: globalPoint.y))
+        // 热键触发时 App 可能未激活：先激活，否则 key window 收不到键盘
+        NSApp.activate(ignoringOtherApps: true)
+        becomesKeyOnlyIfNeeded = false
         makeKeyAndOrderFront(nil)
         makeFirstResponder(textField)
     }

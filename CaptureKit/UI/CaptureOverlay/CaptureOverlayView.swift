@@ -141,12 +141,13 @@ final class CaptureOverlayView: NSView {
     override func mouseDown(with event: NSEvent) {
         let point = globalPoint(event)
 
-        // 绘制工具 + 选区内 → 直接作画（一体化：无模式切换）
-        if let _ = model.activeTool,
-           let selection = model.selection,
-           selection.insetBy(dx: -2, dy: -2).contains(point) {
-            model.selectedAnnotationID = nil
-            annotateMouseDown(at: point)
+        // 绘制工具：选区内 → 直接作画；选区外 → 忽略（不重建选区，与钉钉一致）
+        if let _ = model.activeTool {
+            if let selection = model.selection,
+               selection.insetBy(dx: -2, dy: -2).contains(point) {
+                model.selectedAnnotationID = nil
+                annotateMouseDown(at: point)
+            }
             return
         }
 
@@ -243,6 +244,13 @@ final class CaptureOverlayView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         let point = globalPoint(event)
+
+        // 文字标注落点 → 此刻（鼠标已松开）再弹输入面板，避免 mouseDown 焦点竞争
+        if let pending = model.pendingTextPoint {
+            model.pendingTextPoint = nil
+            delegate?.overlayRequestsTextAnnotation(at: pending)
+            return
+        }
 
         // 标注草稿提交
         if model.draftAnnotation != nil {
@@ -454,9 +462,10 @@ final class CaptureOverlayView: NSView {
             ))
             delegate?.overlaySelectionDidChange()
         case .text:
-            // 文字：点击处弹出输入浮层，提交后由控制器落标注
+            // 文字：记录落点，mouseUp 后再弹输入面板
+            // （mouseDown 中途弹面板会与 mouse-up 事件竞争，field editor 立刻结束编辑导致面板闪退）
             model.annotateDragStart = nil
-            delegate?.overlayRequestsTextAnnotation(at: globalPoint)
+            model.pendingTextPoint = globalPoint
         case .arrow:
             model.draftAnnotation = Annotation(
                 type: .arrow,

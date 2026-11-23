@@ -447,3 +447,12 @@ CaptureResultToast 增加 showText 纯文本变体（与图片 toast 共用定�
 - 信息区三行（左对齐）：`坐标：x, y` / `■ 当前格式色值` / `⌘C 复制颜色值 · Shift 切换 RGB/HEX`
 - Shift 边沿检测切换 HEX/RGB（flagsChanged）；C 与 ⌘C 均按当前格式复制
 - ESC 改为直接取消截图（去掉 草稿→选中标注→选区→取消 的阶梯；回到选择态走右键「重选」）
+
+## 文字/编号工具修复（2026-11-23，第五轮反馈）
+
+- 文字面板在 mouseDown 处理中途弹出：makeFirstResponder 后紧跟的 mouse-up 让 field editor
+  立即结束编辑（空文本 → 走取消 → 面板闪退）；热键触发时 App 未激活也收不到键盘。
+  修复：落点暂存 `pendingTextPoint`，mouseUp 后再弹面板；show() 先 NSApp.activate，
+  `becomesKeyOnlyIfNeeded = false`
+- 编号/绘制工具点击选区外会触发「新建选区」→ 框选区域突变。修复：绘制工具激活时
+  选区外点击一律忽略（与钉钉一致）
