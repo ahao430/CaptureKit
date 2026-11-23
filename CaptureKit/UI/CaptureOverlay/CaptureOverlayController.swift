@@ -321,6 +321,14 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
         activeTextField != nil
     }
 
+    /// 鼠标移出输入框范围 → 自动提交（非空落标注），交互态立即恢复正常。
+    func overlayCommitTextEditingIfOutside(globalPoint: CGPoint) {
+        guard let editing = activeTextField, let window = editing.view.window else { return }
+        let fieldFrame = window.convertToScreen(editing.field.frame)
+        guard !fieldFrame.insetBy(dx: 6, dy: 6).contains(globalPoint) else { return }
+        endTextEditing(commit: true)
+    }
+
     /// 视图请求结束文字编辑（点击其他区域时；非空提交）。
     func overlayRequestsCommitTextEditing() {
         endTextEditing(commit: true)
@@ -369,7 +377,9 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
 
     /// 结束文字编辑（Enter = 提交非空文本；Esc / 点击其他处 = 非空提交、空丢弃）。
     private func endTextEditing(commit: Bool) {
-        guard let editing = activeTextField else { return }
+        guard let editing = activeTextField, !isEndingText else { return }
+        isEndingText = true
+        defer { isEndingText = false }
         activeTextField = nil
         let text = editing.field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         editing.field.removeFromSuperview()
@@ -384,6 +394,9 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
         }
         overlaySelectionDidChange()
     }
+
+    /// endTextEditing 防重入（resign 触发的 didEndEditing 会再次进入）
+    private var isEndingText = false
 
     // MARK: - NSTextFieldDelegate（文字内嵌输入）
 

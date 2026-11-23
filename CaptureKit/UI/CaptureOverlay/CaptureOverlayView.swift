@@ -22,6 +22,8 @@ protocol CaptureOverlayViewDelegate: AnyObject {
     func overlayTextEditingIsActive() -> Bool
     /// 结束文字编辑（非空提交）
     func overlayRequestsCommitTextEditing()
+    /// 鼠标移出输入框范围时自动提交（钉钉式：移开即收起，不阻塞工具栏）
+    func overlayCommitTextEditingIfOutside(globalPoint: CGPoint)
 }
 
 @MainActor
@@ -304,6 +306,10 @@ final class CaptureOverlayView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         let point = globalPoint(event)
+        // 文字编辑中：鼠标移出输入框即自动提交（避免编辑态挂住工具栏交互）
+        if delegate?.overlayTextEditingIsActive() == true {
+            delegate?.overlayCommitTextEditingIfOutside(globalPoint: point)
+        }
         // 放大镜/取色全程跟随鼠标（含已有选区悬停，钉钉式自动取色）
         let pointMoved = model.currentDragPoint != point
         model.currentDragPoint = point
