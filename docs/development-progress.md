@@ -414,3 +414,16 @@ v0.1.4 实机结果：授权成功后不再重复弹出——根因（ad-hoc DR 
 
 Esc 阶梯变为：草稿 → 选中标注 → 选区 → 取消 Overlay。新建选区/选区外右键会连同标注一并清空（标注属于选区）。
 `AnnotateToolPanel` 已删除（并入 SelectionToolbarPanel）；选区像素快照改为视图内懒重建（rect 比对 + 仅有效果标注时）。
+
+## 模式胶囊 + 工具栏钉钉视觉重构（2026-11-23，第二轮用户反馈）
+
+用户提供两张钉钉实测截图，据像素级描述对齐（196 测试通过）：
+
+| 项 | 实现 |
+| --- | --- |
+| 顶部模式胶囊 | `OverlayModePanel`：深色毛玻璃（NSVisualEffectView hudWindow）胶囊、可拖动（isMovableByWindowBackground），[手柄] 截图/滚动截图/录屏/文字识别；选中 = 白卡黑字。仅 CaptureCoordinator 区域截图流程开启（`showsModePanel`），复用 Overlay 的 Scroll/Recording 协调器不受影响 |
+| 意图路由 | `CaptureIntent` + `OverlayFinishRouter`（纯函数可单测）：截图 → 有标注合成/无标注复制；滚动/录屏/文字识别 → 选区确定后立即执行（不留标注工具栏） |
+| 工具栏重做 | 单行深色毛玻璃胶囊，贴**选区上方**（原为下方两行浅色）：[色圆（点击展开 8 色板+线宽三档，胶囊动态变宽）] 矩形/椭圆/箭头/画笔/马赛克/模糊/文字/编号 \| 撤销 \| 贴图 保存 ✕ ✓；白色线性图标，当前工具蓝色高亮 |
+| 去掉「选择」按钮 | `activeTool: AnnotationType?`，nil = 选择（拖动 = 移动选区/标注）；再点当前工具 = 取消回到选择（与钉钉一致） |
+
+OCR/长截图/录制入口从选区工具栏移到模式胶囊（右键菜单仍保留全部入口）。

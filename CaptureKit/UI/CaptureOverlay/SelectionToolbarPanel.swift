@@ -1,6 +1,6 @@
 import AppKit
 
-/// 标注线宽三档（细/中/粗），钉钉式。
+/// 标注线宽三档（细/中/粗）。
 enum OverlayLineWidth: Int, CaseIterable {
     case thin
     case medium
@@ -20,31 +20,33 @@ enum OverlayLineWidth: Int, CaseIterable {
     }
 }
 
-/// 一体化选区工具栏（DingTalk 式）：
-/// 上行 = 标注工具（选择/矩形/椭圆/箭头/画笔/马赛克/文字/编号）+ 颜色 + 线宽 + 撤销；
-/// 下行 = 动作（贴图/OCR/长截图/录制/保存/复制/取消）。
-/// 默认「选择」工具：拖动 = 移动选区；点标注工具后在选区内直接绘制，无模式切换。
+/// 选区标注工具栏（DingTalk 式）：单行深色毛玻璃胶囊，贴选区上方。
+/// [色圆（点击展开色板+线宽）] 矩形/椭圆/箭头/画笔/马赛克/模糊/文字/编号 | 撤销 | 贴图 保存 ✕ ✓
+/// 不选任何工具 = 选择（拖动 = 移动选区/标注）；再点当前工具 = 取消回到选择。
 @MainActor
 final class SelectionToolbarPanel: NSPanel {
-    var onToolChange: ((OverlaySelectionModel.OverlayTool) -> Void)?
+    var onToolChange: ((AnnotationType?) -> Void)?
     var onColorChange: ((AnnotationColor) -> Void)?
     var onWidthChange: ((OverlayLineWidth) -> Void)?
     var onUndo: (() -> Void)?
-    var onCopy: (() -> Void)?
-    var onSave: (() -> Void)?
-    var onRecognizeText: (() -> Void)?
-    var onRecordVideo: (() -> Void)?
-    var onScrollCapture: (() -> Void)?
     var onPin: (() -> Void)?
+    var onSave: (() -> Void)?
     var onCancel: (() -> Void)?
+    /// ✓ 完成（截图意图 = 复制含标注）
+    var onFinish: (() -> Void)?
 
-    private var toolButtons: [OverlaySelectionModel.OverlayTool: NSButton] = [:]
+    private var toolButtons: [AnnotationType: NSButton] = [:]
     private var colorButtons: [AnnotationColor: NSButton] = [:]
     private var widthButtons: [OverlayLineWidth: NSButton] = [:]
+    private let colorCircle = NSButton(title: "", target: nil, action: nil)
+    private let expandGroup = NSStackView()
+    private let colorCircleLayer = CALayer()
+    private weak var contentStack: NSStackView?
+    private var glassViews: [NSView] = []
 
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 84),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 52),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -62,160 +64,204 @@ final class SelectionToolbarPanel: NSPanel {
     // MARK: - 构建
 
     private func buildsContent() {
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 84))
-        container.wantsLayer = true
-        container.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.98).cgColor
-        container.layer?.cornerRadius = 12
-        container.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.5).cgColor
-        container.layer?.borderWidth = 0.5
+        // 深色毛玻璃胶囊
+        let effect = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: 560, height: 52))
+        effect.material = .hudWindow
+        effect.blendingMode = .behindWindow
+        effect.state = .active
+        effect.wantsLayer = true
+        effect.layer?.cornerRadius = 14
+        effect.layer?.masksToBounds = true
+        effect.autoresizingMask = [.width]
+        let border = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 52))
+        border.wantsLayer = true
+        border.layer?.borderColor = NSColor.white.withAlphaComponent(0.14).cgColor
+        border.layer?.borderWidth = 1
+        border.layer?.cornerRadius = 14
+        border.autoresizingMask = [.width]
+        glassViews = [effect, border]
 
-        func makeToggle(
-            symbol: String, tooltip: String, action: Selector,
-            circularDiameter: CGFloat = 0, filledColor: NSColor? = nil
-        ) -> NSButton {
+        func makeIconButton(symbol: String, tooltip: String, action: Selector) -> NSButton {
             let button: NSButton
-            if let filledColor {
-                // 颜色/线宽圆点按钮
-                button = NSButton(title: "", target: self, action: action)
-                button.wantsLayer = true
-                button.layer?.backgroundColor = filledColor.cgColor
-                button.layer?.cornerRadius = circularDiameter / 2
-                button.layer?.borderColor = NSColor.separatorColor.cgColor
-                button.layer?.borderWidth = 1
-                button.frame = NSRect(x: 0, y: 0, width: circularDiameter, height: circularDiameter)
+            if let image = NSImage(systemSymbolName: symbol, accessibilityDescription: tooltip) {
+                button = NSButton(image: image, target: self, action: action)
             } else {
-                let image = NSImage(systemSymbolName: symbol, accessibilityDescription: tooltip)
-                if let image {
-                    button = NSButton(image: image, target: self, action: action)
-                } else {
-                    button = NSButton(title: tooltip, target: self, action: action)
-                }
-                button.bezelStyle = .texturedRounded
-                button.controlSize = .small
-                button.imageScaling = .scaleProportionallyDown
+                button = NSButton(title: tooltip, target: self, action: action)
             }
+            button.isBordered = false
+            button.font = .systemFont(ofSize: 16)
+            button.contentTintColor = .white
             button.toolTip = tooltip
-            button.setButtonType(.toggle)
-            return button
-        }
-
-        // —— 上行：工具 + 颜色 + 线宽 + 撤销 ——
-        let select = makeToggle(symbol: "cursorarrow.click", tooltip: "选择（拖动移动选区/标注）", action: #selector(selectTapped))
-        toolButtons[.select] = select
-
-        let toolSymbols: [(AnnotationType, String)] = [
-            (.rectangle, "rectangle"), (.ellipse, "oval"), (.arrow, "arrow.up.right"),
-            (.brush, "pencil.tip"), (.mosaic, "square.grid.3x3"),
-            (.numberedMarker, "number.circle"), (.text, "textformat"),
-        ]
-        for (type, symbol) in toolSymbols {
-            let button = makeToggle(symbol: symbol, tooltip: type.displayName, action: #selector(toolTapped(_:)))
-            button.tag = toolButtons.count
-            toolButtons[.annotate(type)] = button
-        }
-        let toolRow = NSStackView(views: [select] + toolSymbols.map { toolButtons[.annotate($0.0)]! })
-        toolRow.orientation = .horizontal
-        toolRow.spacing = 3
-
-        for color in AnnotationColor.allCases {
-            let button = makeToggle(
-                symbol: "", tooltip: "颜色", action: #selector(colorTapped(_:)),
-                circularDiameter: 16, filledColor: color.nsColor
-            )
-            button.tag = AnnotationColor.allCases.firstIndex(of: color) ?? 0
-            colorButtons[color] = button
-        }
-        let colorRow = NSStackView(views: AnnotationColor.allCases.map { colorButtons[$0]! })
-        colorRow.orientation = .horizontal
-        colorRow.spacing = 3
-
-        for width in OverlayLineWidth.allCases {
-            let button = makeToggle(
-                symbol: "", tooltip: "线宽 \(width.rawValue + 1)", action: #selector(widthTapped(_:)),
-                circularDiameter: 6 + CGFloat(width.rawValue) * 4,
-                filledColor: .labelColor
-            )
-            button.tag = width.rawValue
-            widthButtons[width] = button
-        }
-        let widthRow = NSStackView(views: OverlayLineWidth.allCases.map { widthButtons[$0]! })
-        widthRow.orientation = .horizontal
-        widthRow.spacing = 3
-
-        let undo = makeToggle(symbol: "arrow.uturn.backward", tooltip: "撤销 ⌘Z", action: #selector(undoTapped))
-
-        func separator() -> NSBox {
-            let box = NSBox()
-            box.boxType = .separator
-            return box
-        }
-
-        let topRow = NSStackView(views: [toolRow, separator(), colorRow, separator(), widthRow, separator(), undo])
-        topRow.orientation = .horizontal
-        topRow.spacing = 8
-
-        // —— 下行：动作 ——
-        func makeAction(_ symbol: String, tooltip: String, action: Selector) -> NSButton {
-            let button = makeToggle(symbol: symbol, tooltip: tooltip, action: action)
+            button.imageScaling = .scaleProportionallyDown
             button.setButtonType(.momentaryPushIn)
             return button
         }
 
-        let actions: [(NSButton, String)] = [
-            (makeAction("pin", tooltip: "贴图（钉在屏幕上）", action: #selector(pinTapped)), "pin"),
-            (makeAction("text.viewfinder", tooltip: "识别文字（OCR）", action: #selector(recognizeTapped)), "ocr"),
-            (makeAction("scroll", tooltip: "长截图（滚动拼接）", action: #selector(scrollTapped)), "scroll"),
-            (makeAction("record.circle", tooltip: "录制视频", action: #selector(recordTapped)), "record"),
-            (makeAction("square.and.arrow.down", tooltip: "保存", action: #selector(saveTapped)), "save"),
-            (makeAction("doc.on.doc", tooltip: "复制 ⏎（含标注）", action: #selector(copyTapped)), "copy"),
-            (makeAction("xmark.circle", tooltip: "取消 ⎋", action: #selector(cancelTapped)), "cancel"),
-        ]
-        let bottomRow = NSStackView(views: actions.map(\.0))
-        bottomRow.orientation = .horizontal
-        bottomRow.spacing = 6
-
-        let rows = NSStackView(views: [topRow, bottomRow])
-        rows.orientation = .vertical
-        rows.spacing = 6
-        rows.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
-        rows.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(rows)
+        // 色圆（当前颜色；点击展开色板 + 线宽）
+        colorCircle.target = self
+        colorCircle.action = #selector(colorCircleTapped)
+        colorCircle.isBordered = false
+        colorCircle.wantsLayer = true
+        colorCircleLayer.cornerRadius = 11
+        colorCircleLayer.borderColor = NSColor.white.withAlphaComponent(0.8).cgColor
+        colorCircleLayer.borderWidth = 1.5
+        colorCircle.layer = colorCircleLayer
+        colorCircle.toolTip = "颜色 / 线宽"
+        let colorCircleBox = NSView(frame: NSRect(x: 0, y: 0, width: 24, height: 24))
+        colorCircle.translatesAutoresizingMaskIntoConstraints = false
+        colorCircleBox.addSubview(colorCircle)
         NSLayoutConstraint.activate([
-            rows.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-            rows.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            colorCircle.widthAnchor.constraint(equalToConstant: 22),
+            colorCircle.heightAnchor.constraint(equalToConstant: 22),
+            colorCircle.centerXAnchor.constraint(equalTo: colorCircleBox.centerXAnchor),
+            colorCircle.centerYAnchor.constraint(equalTo: colorCircleBox.centerYAnchor),
         ])
 
+        // 展开组：8 色板 + 线宽三档（默认隐藏）
+        for color in AnnotationColor.allCases {
+            let swatch = NSButton(title: "", target: self, action: #selector(colorTapped(_:)))
+            swatch.isBordered = false
+            swatch.wantsLayer = true
+            swatch.layer?.backgroundColor = color.nsColor.cgColor
+            swatch.layer?.cornerRadius = 7
+            swatch.layer?.borderColor = NSColor.white.withAlphaComponent(0.45).cgColor
+            swatch.layer?.borderWidth = 1
+            swatch.translatesAutoresizingMaskIntoConstraints = false
+            swatch.widthAnchor.constraint(equalToConstant: 14).isActive = true
+            swatch.heightAnchor.constraint(equalToConstant: 14).isActive = true
+            swatch.tag = AnnotationColor.allCases.firstIndex(of: color) ?? 0
+            colorButtons[color] = swatch
+        }
+        let swatchRow = NSStackView(views: AnnotationColor.allCases.map { colorButtons[$0]! })
+        swatchRow.orientation = .horizontal
+        swatchRow.spacing = 5
+
+        for width in OverlayLineWidth.allCases {
+            let dot = NSButton(title: "", target: self, action: #selector(widthTapped(_:)))
+            dot.isBordered = false
+            dot.wantsLayer = true
+            dot.layer?.backgroundColor = NSColor.white.cgColor
+            let d = 5 + CGFloat(width.rawValue) * 3
+            dot.layer?.cornerRadius = d / 2
+            dot.translatesAutoresizingMaskIntoConstraints = false
+            dot.widthAnchor.constraint(equalToConstant: d).isActive = true
+            dot.heightAnchor.constraint(equalToConstant: d).isActive = true
+            dot.tag = width.rawValue
+            widthButtons[width] = dot
+        }
+        let widthRow = NSStackView(views: OverlayLineWidth.allCases.map { widthButtons[$0]! })
+        widthRow.orientation = .horizontal
+        widthRow.spacing = 8
+
+        expandGroup.orientation = .horizontal
+        expandGroup.spacing = 12
+        expandGroup.setViews([swatchRow, widthRow], in: .leading)
+        expandGroup.isHidden = true
+
+        // 绘制工具
+        let toolSymbols: [(AnnotationType, String)] = [
+            (.rectangle, "rectangle"), (.ellipse, "oval"), (.arrow, "arrow.up.right"),
+            (.brush, "pencil.tip"), (.mosaic, "square.grid.3x3"), (.blur, "drop.halffull"),
+            (.text, "textformat"), (.numberedMarker, "number.circle"),
+        ]
+        for (type, symbol) in toolSymbols {
+            let button = makeIconButton(symbol: symbol, tooltip: type.displayName, action: #selector(toolTapped(_:)))
+            button.tag = toolSymbols.firstIndex(where: { $0.0 == type }) ?? 0
+            toolButtons[type] = button
+        }
+        let toolRow = NSStackView(views: toolSymbols.map { toolButtons[$0.0]! })
+        toolRow.orientation = .horizontal
+        toolRow.spacing = 6
+
+        func separator() -> NSView {
+            let line = NSView()
+            line.wantsLayer = true
+            line.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.22).cgColor
+            line.translatesAutoresizingMaskIntoConstraints = false
+            line.widthAnchor.constraint(equalToConstant: 1).isActive = true
+            line.heightAnchor.constraint(equalToConstant: 22).isActive = true
+            return line
+        }
+
+        let undo = makeIconButton(symbol: "arrow.uturn.backward", tooltip: "撤销 ⌘Z", action: #selector(undoTapped))
+        let pin = makeIconButton(symbol: "pin", tooltip: "贴图（钉在屏幕上）", action: #selector(pinTapped))
+        let save = makeIconButton(symbol: "square.and.arrow.down", tooltip: "保存", action: #selector(saveTapped))
+        let cancel = makeIconButton(symbol: "xmark", tooltip: "取消 ⎋", action: #selector(cancelTapped))
+        let finish = makeIconButton(symbol: "checkmark", tooltip: "完成 ⏎（复制含标注）", action: #selector(finishTapped))
+
+        let stack = NSStackView(views: [
+            colorCircleBox, toolRow, expandGroup, separator(), undo, separator(), pin, save, cancel, finish,
+        ])
+        stack.orientation = .horizontal
+        stack.spacing = 10
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 14, bottom: 0, right: 14)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 52))
+        container.addSubview(effect)
+        container.addSubview(border)
+        container.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+        ])
         contentView = container
+        contentStack = stack
+    }
+
+    /// 按内容重设胶囊宽度（展开/收起色板后调用；左上角锚定）。
+    private func syncPanelWidth() {
+        guard let stack = contentStack, let container = contentView else { return }
+        let target = max(320, ceil(stack.fittingSize.width) + 8)
+        guard abs(target - container.frame.width) > 1 else { return }
+        var frame = self.frame
+        frame.size.width = target
+        // 左上角锚定（AppKit 原点在左下）
+        frame.origin.y = frame.maxY - 52
+        setFrame(frame, display: true)
+        container.frame = NSRect(x: 0, y: 0, width: target, height: 52)
+        for view in glassViews {
+            view.frame = NSRect(x: 0, y: 0, width: target, height: 52)
+        }
+        stack.needsLayout = true
     }
 
     // MARK: - 状态同步
 
-    /// 同步工具/颜色/线宽选中态（面板自己管理 toggle state）。
-    func reflect(tool: OverlaySelectionModel.OverlayTool, style: AnnotationStyle) {
+    /// 同步工具/颜色/线宽选中态与色圆颜色。
+    func reflect(tool: AnnotationType?, style: AnnotationStyle) {
         for (key, button) in toolButtons {
-            button.state = key == tool ? .on : .off
+            let active = key == tool
+            button.contentTintColor = active ? NSColor.systemBlue : .white
         }
         for (color, button) in colorButtons {
-            button.state = color == style.color ? .on : .off
+            button.layer?.borderWidth = color == style.color ? 2.5 : 1
         }
         let width = OverlayLineWidth.nearest(to: style.lineWidth)
         for (key, button) in widthButtons {
-            button.state = key == width ? .on : .off
+            button.alphaValue = key == width ? 1 : 0.45
         }
+        colorCircleLayer.backgroundColor = style.color.nsColor.cgColor
+    }
+
+    /// 收起色板/线宽展开组。
+    func collapseExpandGroup() {
+        expandGroup.isHidden = true
+        syncPanelWidth()
     }
 
     // MARK: - 定位
 
-    /// 放置到选区正下方（空间不足时上方），并 clamp 到屏幕内。
-    func position(below selection: CGRect, in screen: NSScreen) {
+    /// 放置到选区上方（空间不足时下方），并 clamp 到屏幕内。
+    func position(above selection: CGRect, in screen: NSScreen) {
         let visible = screen.visibleFrame
-        let gap: CGFloat = 12
+        let gap: CGFloat = 10
         var origin = CGPoint(
-            x: selection.midX - frame.width / 2,
-            y: selection.minY - gap - frame.height
+            x: selection.minX,
+            y: selection.maxY + gap
         )
-        if origin.y < visible.minY {
-            origin.y = selection.maxY + gap
+        if origin.y + frame.height > visible.maxY {
+            origin.y = selection.minY - gap - frame.height
         }
         origin.x = max(visible.minX + 4, min(origin.x, visible.maxX - frame.width - 4))
         origin.y = max(visible.minY + 4, min(origin.y, visible.maxY - frame.height - 4))
@@ -224,33 +270,33 @@ final class SelectionToolbarPanel: NSPanel {
 
     // MARK: - 动作
 
-    @objc private func selectTapped() { onToolChange?(.select) }
+    @objc private func colorCircleTapped() {
+        expandGroup.isHidden.toggle()
+        syncPanelWidth()
+    }
 
     @objc private func toolTapped(_ sender: NSButton) {
-        // tag = 构建顺序对应 toolSymbols 索引（select 为 0 号之前的独立按钮）
-        let symbols: [AnnotationType] = [.rectangle, .ellipse, .arrow, .brush, .mosaic, .numberedMarker, .text]
-        let index = sender.tag - 1
-        guard symbols.indices.contains(index) else { return }
-        onToolChange?(.annotate(symbols[index]))
+        let symbols: [AnnotationType] = [.rectangle, .ellipse, .arrow, .brush, .mosaic, .blur, .text, .numberedMarker]
+        guard symbols.indices.contains(sender.tag) else { return }
+        onToolChange?(symbols[sender.tag])
     }
 
     @objc private func colorTapped(_ sender: NSButton) {
         let colors = AnnotationColor.allCases
         guard colors.indices.contains(sender.tag) else { return }
         onColorChange?(colors[sender.tag])
+        collapseExpandGroup()
     }
 
     @objc private func widthTapped(_ sender: NSButton) {
         guard let width = OverlayLineWidth(rawValue: sender.tag) else { return }
         onWidthChange?(width)
+        collapseExpandGroup()
     }
 
     @objc private func undoTapped() { onUndo?() }
-    @objc private func copyTapped() { onCopy?() }
-    @objc private func saveTapped() { onSave?() }
-    @objc private func recognizeTapped() { onRecognizeText?() }
-    @objc private func recordTapped() { onRecordVideo?() }
-    @objc private func scrollTapped() { onScrollCapture?() }
     @objc private func pinTapped() { onPin?() }
+    @objc private func saveTapped() { onSave?() }
     @objc private func cancelTapped() { onCancel?() }
+    @objc private func finishTapped() { onFinish?() }
 }

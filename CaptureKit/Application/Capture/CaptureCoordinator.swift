@@ -33,6 +33,8 @@ final class CaptureCoordinator {
         self.engine = engine
         self.settings = settings
         self.overlay = CaptureOverlayController()
+        // 截图流程展示顶部模式胶囊（截图/滚动/录屏/文字识别）
+        overlay.showsModePanel = true
         overlay.onFinish = { [weak self] result in
             self?.handleOverlayResult(result)
         }

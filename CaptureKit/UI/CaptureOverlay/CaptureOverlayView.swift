@@ -95,7 +95,7 @@ final class CaptureOverlayView: NSView {
             drawAnnotations(context, selection: selection)
 
             // 3.6 选中标注的虚线包围盒（选择工具下）
-            if model.activeTool.isSelect, let id = model.selectedAnnotationID,
+            if model.activeTool == nil, let id = model.selectedAnnotationID,
                let annotation = model.annotations.first(where: { $0.id == id }) {
                 drawAnnotationSelectionBox(context, annotation: annotation, selection: selection)
             }
@@ -116,7 +116,7 @@ final class CaptureOverlayView: NSView {
         }
 
         // 6. 控制点（选择工具下才可调整选区；绘制工具下不干扰作画）
-        if let selection = model.selection, model.activeTool.isSelect {
+        if let selection = model.selection, model.activeTool == nil {
             for handle in SelectionHandle.allCases {
                 drawHandle(context, handle: handle, on: selection)
             }
@@ -142,7 +142,7 @@ final class CaptureOverlayView: NSView {
         let point = globalPoint(event)
 
         // 绘制工具 + 选区内 → 直接作画（一体化：无模式切换）
-        if !model.activeTool.isSelect,
+        if let _ = model.activeTool,
            let selection = model.selection,
            selection.insetBy(dx: -2, dy: -2).contains(point) {
             model.selectedAnnotationID = nil
@@ -150,8 +150,8 @@ final class CaptureOverlayView: NSView {
             return
         }
 
-        // 选择工具 + 选区内命中已画标注 → 选中并准备拖动
-        if model.activeTool.isSelect,
+        // 选择（无工具）+ 选区内命中已画标注 → 选中并准备拖动
+        if model.activeTool == nil,
            let selection = model.selection,
            selection.insetBy(dx: 2, dy: 2).contains(point),
            let hit = annotationHitTest(at: point, in: selection) {
@@ -162,7 +162,7 @@ final class CaptureOverlayView: NSView {
         }
 
         // 双击检测 → 窗口捕获（绘制工具下双击视为两次落笔，不触发）
-        if model.activeTool.isSelect,
+        if model.activeTool == nil,
            let last = model.lastClick,
            Date().timeIntervalSince(last.time) < 0.35,
            hypot(point.x - last.point.x, point.y - last.point.y) < 6 {
@@ -431,7 +431,7 @@ final class CaptureOverlayView: NSView {
     private func annotateMouseDown(at globalPoint: CGPoint) {
         guard let selection = model.selection,
               selection.insetBy(dx: -2, dy: -2).contains(globalPoint),
-              case .annotate(let tool) = model.activeTool else { return }
+              let tool = model.activeTool else { return }
         let local = annotateLocal(globalPoint, selection: selection)
         model.annotateDragStart = local
 

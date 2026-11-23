@@ -60,7 +60,12 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
     private var views: [CaptureOverlayView] = []
     private let model = OverlaySelectionModel()
     private var toolbar: SelectionToolbarPanel?
+    private var modePanel: OverlayModePanel?
     private var textEntryPanel: OverlayTextEntryPanel?
+
+    /// 是否展示顶部模式胶囊（截图/滚动/录屏/文字识别）。
+    /// 仅 CaptureCoordinator 的区域截图流程开启；复用 Overlay 的其他协调器保持原流程。
+    var showsModePanel = false
 
     /// 展示期间是否允许再次 present（防重入）
     private(set) var isPresented = false
@@ -92,12 +97,13 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
         let toolbarPanel = SelectionToolbarPanel()
         toolbarPanel.onToolChange = { [weak self] tool in
             guard let self else { return }
-            self.model.activeTool = tool
-            // 切换到选择工具时清理未提交草稿
-            if tool.isSelect {
+            // 再点当前工具 = 取消，回到选择
+            if self.model.activeTool == tool {
+                self.model.activeTool = nil
                 self.model.draftAnnotation = nil
                 self.model.annotateDragStart = nil
             } else {
+                self.model.activeTool = tool
                 self.model.selectedAnnotationID = nil
             }
             self.overlaySelectionDidChange()
@@ -131,26 +137,26 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
             }
             self.overlaySelectionDidChange()
         }
-        toolbarPanel.onCopy = { [weak self] in self?.finishAnnotated() }
-        toolbarPanel.onSave = { [weak self] in self?.finish(.region(self?.model.selection ?? .zero, action: .save)) }
-        toolbarPanel.onRecognizeText = { [weak self] in
-            guard let selection = self?.model.selection else { return }
-            self?.finish(.recognizeRegion(selection))
-        }
-        toolbarPanel.onRecordVideo = { [weak self] in
-            guard let selection = self?.model.selection else { return }
-            self?.finish(.recordRegion(selection, mode: .video))
-        }
-        toolbarPanel.onScrollCapture = { [weak self] in
-            guard let selection = self?.model.selection else { return }
-            self?.finish(.scrollRegion(selection))
-        }
         toolbarPanel.onPin = { [weak self] in
             guard let selection = self?.model.selection else { return }
             self?.finish(.pinRegion(selection))
         }
+        toolbarPanel.onSave = { [weak self] in self?.finish(.region(self?.model.selection ?? .zero, action: .save)) }
         toolbarPanel.onCancel = { [weak self] in self?.finish(.cancelled) }
+        toolbarPanel.onFinish = { [weak self] in self?.finishByIntent() }
         self.toolbar = toolbarPanel
+
+        // 顶部模式胶囊（截图/滚动/录屏/文字识别）
+        let mode = OverlayModePanel()
+        mode.onIntentChange = { [weak self] intent in
+            guard let self else { return }
+            self.model.captureIntent = intent
+            // 已有选区时切换意图 → 立即按新意图执行
+            if intent != .screenshot, self.model.selection != nil, !self.model.isInteracting {
+                self.finishByIntent()
+            }
+        }
+        self.modePanel = mode
 
         for screen in NSScreen.screens {
             let view = CaptureOverlayView(model: model, screenFrame: screen.frame)
@@ -186,6 +192,16 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
         observeScreenChanges()
         loadSnapshots()
 
+        // 顶部模式胶囊：截图流程且当前无选区时展示
+        if showsModePanel, presentedMode == .region {
+            let mouseScreen = NSScreen.screens.first {
+                $0.frame.contains(NSEvent.mouseLocation)
+            } ?? NSScreen.main
+            if let mouseScreen {
+                modePanel?.showBelowMenuBar(in: mouseScreen, intent: model.captureIntent)
+            }
+        }
+
         Log.overlay.debug("Overlay presented with \(self.views.count) screen(s)")
     }
 
@@ -200,6 +216,8 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
         }
         toolbar?.orderOut(nil)
         toolbar = nil
+        modePanel?.orderOut(nil)
+        modePanel = nil
         textEntryPanel?.orderOut(nil)
         textEntryPanel = nil
         for window in windows {
@@ -222,16 +240,19 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
     func overlaySelectionDidChange() {
         for view in views { view.needsDisplay = true }
         updateToolbar()
+
+        // 非截图意图（滚动/录屏/文字识别）：选区确定后立即执行
+        if showsModePanel,
+           model.captureIntent != .screenshot,
+           model.selection != nil,
+           !model.isInteracting, !model.isAnnotateDrafting {
+            finishByIntent()
+        }
     }
 
     func overlayRequestsConfirm(action: CaptureDeliveryAction) {
-        guard let selection = model.selection else { return }
-        // Enter：有标注 = 复制含标注的合成截图（一体化工具栏语义）
-        if model.hasAnnotations {
-            finishAnnotated()
-            return
-        }
-        finish(.region(selection, action: action))
+        guard model.selection != nil else { return }
+        finishByIntent()
     }
 
     func overlayRequestsCancel() {
@@ -251,7 +272,8 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
 
     /// 标注状态复位（选区重建 / Overlay 收起时）。
     private func resetAnnotateState() {
-        model.activeTool = .select
+        model.activeTool = nil
+        model.captureIntent = .screenshot
         model.annotations = []
         model.draftAnnotation = nil
         model.annotateDragStart = nil
@@ -261,7 +283,7 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
         model.selectionBaseImageForRect = nil
     }
 
-    /// 清除选区（连同已画标注一并丢弃）。
+    /// 清除选区（连同已画标注一并丢弃；模式胶囊重新出现）。
     private func clearSelection() {
         model.selection = nil
         model.hoverWindowFrame = nil
@@ -269,14 +291,20 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
         overlaySelectionDidChange()
     }
 
-    /// 完成交付：有标注走合成导出，无标注退化为普通复制。
+    /// 完成交付：按当前意图路由（截图 = 有标注走合成导出，无标注普通复制）。
+    private func finishByIntent() {
+        guard let selection = model.selection,
+              let result = OverlayFinishRouter.result(
+                intent: model.captureIntent,
+                selection: selection,
+                annotations: model.annotations
+              ) else { return }
+        finish(result)
+    }
+
+    /// 完成截图意图交付（复制含标注）。
     private func finishAnnotated() {
-        guard let selection = model.selection else { return }
-        if model.annotations.isEmpty {
-            finish(.region(selection, action: .copy))
-        } else {
-            finish(.regionAnnotated(selection, model.annotations))
-        }
+        finishByIntent()
     }
 
     func overlayRequestsTextAnnotation(at globalPoint: CGPoint) {
@@ -463,10 +491,27 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
     }
 
     private func updateToolbar() {
+        // 顶部模式胶囊：无选区时展示（选区出现后隐藏，截图流程专属）
+        if showsModePanel, presentedMode == .region {
+            if model.selection == nil {
+                if let modePanel, !modePanel.isVisible {
+                    let mouseScreen = NSScreen.screens.first {
+                        $0.frame.contains(NSEvent.mouseLocation)
+                    } ?? NSScreen.main
+                    if let mouseScreen {
+                        modePanel.showBelowMenuBar(in: mouseScreen, intent: model.captureIntent)
+                    }
+                }
+            } else {
+                modePanel?.orderOut(nil)
+            }
+        }
+
         guard let toolbar else { return }
 
-        // 一体化工具栏：有选区且不在交互/绘制草稿中时显示
+        // 一体化标注工具栏：有选区且不在交互/绘制草稿中时显示（贴选区上方）
         guard presentedMode.showsToolbar,
+              model.captureIntent == .screenshot,
               let selection = model.selection,
               !model.isInteracting, !model.isAnnotateDrafting, model.annotationDrag == nil else {
             toolbar.orderOut(nil)
@@ -480,9 +525,33 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
         guard let screen else { return }
 
         toolbar.reflect(tool: model.activeTool, style: model.annotateStyle)
-        toolbar.position(below: selection, in: screen)
+        toolbar.position(above: selection, in: screen)
         if !toolbar.isVisible {
             toolbar.orderFrontRegardless()
+        }
+    }
+}
+
+/// 意图 → 交付结果路由（纯函数，可单测）。
+enum OverlayFinishRouter {
+    /// 截图：有标注 = 合成导出，无标注 = 普通复制；其他意图 = 对应区域动作。
+    static func result(
+        intent: OverlaySelectionModel.CaptureIntent,
+        selection: CGRect,
+        annotations: [Annotation]
+    ) -> CaptureOverlayController.Result? {
+        switch intent {
+        case .screenshot:
+            if annotations.isEmpty {
+                return .region(selection, action: .copy)
+            }
+            return .regionAnnotated(selection, annotations)
+        case .scroll:
+            return .scrollRegion(selection)
+        case .record:
+            return .recordRegion(selection, mode: .video)
+        case .ocr:
+            return .recognizeRegion(selection)
         }
     }
 }

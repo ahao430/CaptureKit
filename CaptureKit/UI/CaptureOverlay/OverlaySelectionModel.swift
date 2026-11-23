@@ -60,16 +60,28 @@ final class OverlaySelectionModel {
 
     // MARK: 选区内直接标注（一体化工具栏，DingTalk 式）
 
-    /// 一体化工具：.select = 选择/移动选区与已画标注；.annotate = 直接绘制
-    enum OverlayTool: Hashable {
-        case select
-        case annotate(AnnotationType)
+    /// 捕获意图（顶部模式胶囊选择；截图 = 标注工具栏流程）
+    enum CaptureIntent: Equatable {
+        case screenshot
+        case scroll
+        case record
+        case ocr
 
-        var isSelect: Bool { self == .select }
+        var displayName: String {
+            switch self {
+            case .screenshot: return "截图"
+            case .scroll: return "滚动截图"
+            case .record: return "录屏"
+            case .ocr: return "文字识别"
+            }
+        }
     }
 
-    /// 当前工具（默认选择：拖动 = 移动选区，与钉钉一致）
-    var activeTool: OverlayTool = .select
+    /// 当前捕获意图（模式胶囊；仅截图意图显示标注工具栏）
+    var captureIntent: CaptureIntent = .screenshot
+
+    /// 当前绘制工具；nil = 选择（拖动 = 移动选区/标注，与钉钉一致）
+    var activeTool: AnnotationType?
 
     /// 当前标注样式（新标注使用；选中标注时也作为修改目标）
     var annotateStyle: AnnotationStyle = .default
