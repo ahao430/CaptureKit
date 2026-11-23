@@ -249,14 +249,19 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
         for view in views { view.needsDisplay = true }
         updateToolbar()
 
-        // 非截图意图（滚动/录屏/文字识别）：选区确定后立即执行
+        // 非截图意图（滚动/录屏/文字识别）：选区确定后只执行一次（此后标注等变化不再触发）
         if showsModePanel,
            model.captureIntent != .screenshot,
            model.selection != nil,
-           !model.isInteracting, !model.isAnnotateDrafting {
+           !model.isInteracting, !model.isAnnotateDrafting,
+           model.selection != intentFiredSelection {
+            intentFiredSelection = model.selection
             finishByIntent()
         }
     }
+
+    /// 意图路由已触发过的选区（每个选区只触发一次，防重复退出）
+    private var intentFiredSelection: CGRect?
 
     func overlayRequestsConfirm(action: CaptureDeliveryAction) {
         guard model.selection != nil else { return }
@@ -278,6 +283,7 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
     private func resetAnnotateState() {
         model.activeTool = nil
         model.captureIntent = .screenshot
+        intentFiredSelection = nil
         model.annotations = []
         model.draftAnnotation = nil
         model.annotateDragStart = nil
@@ -403,6 +409,11 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         switch commandSelector {
         case #selector(NSResponder.insertNewline(_:)):
+            // 中文输入法确认（选字 Enter/空格）也可能走 insertNewline：
+            // 有 marked text（组字中）时交给输入法，不当作提交
+            if textView.markedRange() != NSRange(location: NSNotFound, length: 0) {
+                return false
+            }
             endTextEditing(commit: true)
             return true
         case #selector(NSResponder.cancelOperation(_:)):
@@ -554,6 +565,9 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
 
     private func finish(_ result: Result) {
         guard isPresented else { return }
+        // 退出诊断：定位"一次操作就退出"类问题（哪个入口、当时状态）
+        let state = "intent=\(model.captureIntent) tool=\(model.activeTool.map(\.rawValue) ?? "none") annotations=\(model.annotations.count) editing=\(activeTextField != nil)"
+        Log.overlay.error("OVERLAY FINISH: \(String(describing: result), privacy: .public) | \(state, privacy: .public)")
         dismiss()
         onFinish?(result)
     }
