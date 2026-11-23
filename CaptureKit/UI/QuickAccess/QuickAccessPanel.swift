@@ -269,6 +269,7 @@ final class QuickAccessPanelController: NSObject, NSWindowDelegate {
             panel.titleVisibility = .hidden
             panel.isFloatingPanel = true
             panel.level = .floating
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             panel.hidesOnDeactivate = false
             panel.isReleasedWhenClosed = false
             panel.delegate = self

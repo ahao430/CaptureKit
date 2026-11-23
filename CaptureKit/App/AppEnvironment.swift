@@ -80,6 +80,8 @@ final class AppEnvironment {
 
         menuBar.setup()
         AppDockIconService.apply(showDockIcon: settings.settings.general.showDockIcon)
+        // Translocation/quarantine 引导（ADR-030）：临时路径运行会让 TCC 授权反复失效
+        TranslocationChecker.checkAndGuideIfNeeded()
         registerHotkeys()
         clipboardMonitor.applySettings()
         startAutoClean()

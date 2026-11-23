@@ -340,3 +340,15 @@ Phase 5 批次 2 已完成：QuickAccessPanel（⌘⇧V：搜索/键盘导航/En
 3. 本机 xcodebuild「scheme 含测试 target 即挂死」仅限本机（Xcode 26.6/macOS 27.2），CI 正常——双 scheme 保留为本地规避。
 
 剩余人工项（docs/releasing.md §3）：真实下载 DMG → xattr → 启动验收；更高版本号发的更新回路（v0.1.1+）验证 Sparkle 全流程；Intel/Rosetta 抽查。
+
+## v0.1.1 用户实测修复批次（三个问题的根因与处理）
+
+| 问题 | 根因 | 修复 |
+| --- | --- | --- |
+| ① 授权后下次还弹屏幕录制弹窗 | App Translocation：带 quarantine 的 app 被迁移到随机只读路径，TCC 授权按路径记录，每次启动路径都变 → 授权失效。右键「打开」不清隔离属性，无法根治 | `TranslocationChecker`：启动检测 AppTranslocation/xattr（可「不再提示」），弹窗引导拖入「应用程序」或执行 xattr；README/主页双语说明 |
+| ② 录屏不进历史 | 下游症状：TCC 失效会话里 SCStream 失败 → onRecordingCompleted 不触发。回归测试证明 recordRecording 入库链路本身正常（真实 mp4 → 条目/类型/落盘/缩略图/去重 全通过） | recordRecording 静默失败改记 error 日志；新增 RecordingHistoryTests 2 例 |
+| ③ ⇧⌘R/H/V「有问题」 | ⇧⌘R 同①（TCC 失效实例上录屏必失败并弹权限引导）；⇧⌘H/⇧⌘V 窗口在全屏应用当前 Space 打不开 | 历史/设置/QuickAccess 窗口加 `collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]` |
+
+另：主页完成双语（默认中文，导航 EN 切换，localStorage 记忆）；eyebrow 10px→12px、移动端 nav 压缩（隐藏下载按钮）修复审计必修。
+
+本地 161/161 测试通过。遗留观察项：v0.1.1 安装后请用户复测 ①②③；若 ⇧⌘H/⇧⌘V 仍异常需用户给出具体现象（无反应/弹窗/内容为空）。

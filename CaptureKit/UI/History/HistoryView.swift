@@ -501,6 +501,7 @@ final class HistoryWindowController {
 
         let hosting = NSHostingController(rootView: AnyView(HistoryView().environmentObject(viewModel)))
         let window = NSWindow(contentViewController: hosting)
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.title = "CaptureKit 历史"
         window.styleMask.insert(.titled)
         window.styleMask.insert(.closable)

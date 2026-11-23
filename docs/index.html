@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" data-zcode-design>
+<html lang="zh-CN" data-zcode-design>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CaptureKit — Capture. Organize. Reuse.</title>
-<meta name="description" content="A lightweight, native menu-bar app for macOS: screenshots, screen recording, GIF, scrolling captures, clipboard history and OCR — everything stays on your Mac.">
+<meta name="description" content="适用于 macOS 的轻量原生菜单栏应用：截图、屏幕录制、GIF、滚动长图、剪贴板历史与 OCR 搜索——一切都在本机。（Bilingual: 中文 / English toggle）">
 <script>document.documentElement.classList.add('js')</script>
 <link rel="icon" type="image/png" href="images/icon-256.png">
 <link rel="apple-touch-icon" href="images/icon-1024.png">
@@ -124,6 +124,14 @@ p { max-width: 65ch; }
 }
 .nav .cta:hover { transform: scale(0.97); }
 @media (max-width: 768px) { .nav .links { display: none; } }
+@media (max-width: 640px) {
+  /* 窄屏：隐藏下载按钮（hero 已有大按钮），压缩 nav 保证单行居中不换行 */
+  .nav { gap: 12px; padding: 8px 10px 8px 16px; }
+  .nav .cta { display: none; }
+  .nav .wordmark { font-size: 14px; }
+  .nav .wordmark img { width: 18px; height: 18px; }
+  .lang-toggle { padding: 7px 12px; font-size: 12px; }
+}
 
 /* ============ Layout helpers ============ */
 .wrap { width: min(1120px, calc(100% - 48px)); margin: 0 auto; position: relative; z-index: 1; }
@@ -132,7 +140,7 @@ section { padding: var(--sp-section) 0; }
 .eyebrow {
   display: inline-flex; align-items: center; gap: 8px;
   font-family: var(--font-mono);
-  font-size: 10px; font-weight: 500;
+  font-size: 12px; font-weight: 500;
   text-transform: uppercase; letter-spacing: 0.2em;
   color: var(--accent);
   padding: 7px 14px;
@@ -413,6 +421,18 @@ footer a { color: var(--dark-muted); text-decoration: none; transition: color va
 footer a:hover { color: var(--dark-fg); }
 footer .row { display: flex; gap: 22px; }
 
+/* ============ Bilingual（默认中文，html[lang] 控制显隐） ============ */
+html[lang="en"] .lang-zh { display: none; }
+html[lang="zh-CN"] .lang-en { display: none; }
+.lang-toggle {
+  font-family: var(--font-body); font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+  background: var(--fg); color: var(--bg);
+  border: 0; cursor: pointer;
+  padding: 8px 14px; border-radius: var(--radius-pill);
+  transition: transform var(--dur) var(--ease-spring);
+}
+.lang-toggle:hover { transform: scale(0.96); }
+
 /* ============ Small screens ============ */
 @media (max-width: 640px) {
   /* SVG 内嵌文字在整图缩放后低于可读字号，隐藏（图形本身保留） */
@@ -438,11 +458,12 @@ footer .row { display: flex; gap: 22px; }
       CaptureKit
     </a>
     <div class="links">
-      <a href="#features">Features</a>
-      <a href="#install">Install</a>
-      <a href="#notes">First launch</a>
+      <a href="#features"><span class="lang-zh">功能</span><span class="lang-en">Features</span></a>
+      <a href="#install"><span class="lang-zh">安装</span><span class="lang-en">Install</span></a>
+      <a href="#notes"><span class="lang-zh">首次使用</span><span class="lang-en">First launch</span></a>
     </div>
-    <a class="cta" href="https://github.com/ahao430/CaptureKit/releases/latest/download/CaptureKit.dmg">Download DMG</a>
+    <a class="cta" href="https://github.com/ahao430/CaptureKit/releases/latest/download/CaptureKit.dmg"><span class="lang-zh">下载 DMG</span><span class="lang-en">Download DMG</span></a>
+    <button type="button" class="lang-toggle" id="lang-toggle" aria-label="切换语言 / Switch language">EN</button>
   </nav>
 </header>
 
@@ -451,26 +472,26 @@ footer .row { display: flex; gap: 22px; }
   <!-- Hero -->
   <section class="hero">
     <div class="wrap">
-      <span class="eyebrow reveal">Menu-bar utility for macOS</span>
+      <span class="eyebrow reveal"><span class="lang-zh">适用于 macOS 的菜单栏工具</span><span class="lang-en">Menu-bar utility for macOS</span></span>
       <h1 class="reveal">Capture. Organize. Reuse.</h1>
-      <p class="lede reveal">Screenshots, screen recording, GIF, scrolling captures, clipboard history and OCR search — one native menu-bar app. Everything stays on your Mac.</p>
+      <p class="lede reveal"><span class="lang-zh">截图、屏幕录制、GIF、滚动长图、剪贴板历史与 OCR 搜索——一个原生菜单栏应用，一切都在你的 Mac 上。</span><span class="lang-en">Screenshots, screen recording, GIF, scrolling captures, clipboard history and OCR search — one native menu-bar app. Everything stays on your Mac.</span></p>
       <div class="actions reveal">
         <a class="cta-primary download" href="https://github.com/ahao430/CaptureKit/releases/latest/download/CaptureKit.dmg">
-          Download for macOS
+          <span class="lang-zh">下载 macOS 版</span><span class="lang-en">Download for macOS</span>
           <span class="tail" aria-hidden="true">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
           </span>
         </a>
         <a class="cta-ghost" href="https://github.com/ahao430/CaptureKit">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.72.5.1.68-.22.68-.49 0-.24-.01-.88-.01-1.72-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.63.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.7 0 0 .84-.28 2.75 1.05a9.36 9.36 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.4.2 2.44.1 2.7.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.8-4.57 5.06.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.6.69.49A10.17 10.17 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
-          View on GitHub
+          <span class="lang-zh">在 GitHub 上查看</span><span class="lang-en">View on GitHub</span>
         </a>
       </div>
-      <div class="meta reveal">macOS 14+ &nbsp;·&nbsp; Universal binary (Apple Silicon &amp; Intel) &nbsp;·&nbsp; auto-update via Sparkle</div>
+      <div class="meta reveal">macOS 14+ &nbsp;·&nbsp; <span class="lang-zh">Universal 二进制（Apple Silicon 与 Intel）</span><span class="lang-en">Universal binary (Apple Silicon &amp; Intel)</span> &nbsp;·&nbsp; <span class="lang-zh">Sparkle 自动更新</span><span class="lang-en">auto-update via Sparkle</span></div>
 
       <!-- Illustration: region-capture overlay, drawn (not a screenshot) -->
-      <figure class="hero-fig reveal" aria-label="Illustration of the region-capture overlay: a selection rectangle with handles, crosshair, magnifier and a dimension readout">
-        <svg viewBox="0 0 1040 420" role="img" aria-label="Illustration of CaptureKit's region-capture overlay with selection handles, magnifier and dimension readout">
+      <figure class="hero-fig reveal" aria-label="区域截图选区遮罩示意图：选区矩形、手柄、十字线、放大镜与尺寸读数" data-aria-zh="区域截图选区遮罩示意图：选区矩形、手柄、十字线、放大镜与尺寸读数" data-aria-en="Illustration of the region-capture overlay: a selection rectangle with handles, crosshair, magnifier and a dimension readout">
+        <svg viewBox="0 0 1040 420" role="img" aria-label="CaptureKit 区域截图遮罩示意图：选区手柄、放大镜与尺寸读数" data-aria-zh="CaptureKit 区域截图遮罩示意图：选区手柄、放大镜与尺寸读数" data-aria-en="Illustration of CaptureKit's region-capture overlay with selection handles, magnifier and dimension readout">
           <!-- desktop hints -->
           <rect class="fig-frame" x="0" y="0" width="1040" height="420" rx="22"/>
           <g opacity="0.5">
@@ -513,7 +534,7 @@ footer .row { display: flex; gap: 22px; }
           <!-- toolbar chips -->
           <g font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="12.5">
             <rect class="fig-tool" x="470" y="336" width="100" height="24" rx="12"/>
-            <text class="fig-tool-text" x="520" y="352" text-anchor="middle">⏎ capture</text>
+            <text class="fig-tool-text" x="520" y="352" text-anchor="middle"><tspan class="lang-zh">⏎ 捕获</tspan><tspan class="lang-en">⏎ capture</tspan></text>
           </g>
         </svg>
       </figure>
@@ -523,26 +544,26 @@ footer .row { display: flex; gap: 22px; }
   <!-- Shortcut / capability marquee -->
   <div class="chips reveal" aria-label="Feature and shortcut overview">
     <div class="track">
-      <span><kbd>⇧⌘A</kbd> Region capture</span>
-      <span><kbd>⇧⌘R</kbd> Record region</span>
-      <span><kbd>⇧⌘H</kbd> Unified history</span>
-      <span><kbd>⇧⌘V</kbd> Quick paste</span>
-      <span>Scrolling capture</span>
-      <span>GIF export</span>
-      <span>Pause &amp; resume recording</span>
-      <span>OCR text search</span>
-      <span>Mosaic &amp; blur</span>
-      <span>Local-first, no uploads</span>
-      <span><kbd>⇧⌘A</kbd> Region capture</span>
-      <span><kbd>⇧⌘R</kbd> Record region</span>
-      <span><kbd>⇧⌘H</kbd> Unified history</span>
-      <span><kbd>⇧⌘V</kbd> Quick paste</span>
-      <span>Scrolling capture</span>
-      <span>GIF export</span>
-      <span>Pause &amp; resume recording</span>
-      <span>OCR text search</span>
-      <span>Mosaic &amp; blur</span>
-      <span>Local-first, no uploads</span>
+      <span><kbd>⇧⌘A</kbd> <span class="lang-zh">区域截图</span><span class="lang-en">Region capture</span></span>
+      <span><kbd>⇧⌘R</kbd> <span class="lang-zh">区域录制</span><span class="lang-en">Record region</span></span>
+      <span><kbd>⇧⌘H</kbd> <span class="lang-zh">统一历史</span><span class="lang-en">Unified history</span></span>
+      <span><kbd>⇧⌘V</kbd> <span class="lang-zh">快速粘贴</span><span class="lang-en">Quick paste</span></span>
+      <span><span class="lang-zh">滚动长图</span><span class="lang-en">Scrolling capture</span></span>
+      <span><span class="lang-zh">GIF 导出</span><span class="lang-en">GIF export</span></span>
+      <span><span class="lang-zh">暂停续录</span><span class="lang-en">Pause &amp; resume recording</span></span>
+      <span><span class="lang-zh">OCR 文字搜索</span><span class="lang-en">OCR text search</span></span>
+      <span><span class="lang-zh">马赛克与模糊</span><span class="lang-en">Mosaic &amp; blur</span></span>
+      <span><span class="lang-zh">本地优先，不上传</span><span class="lang-en">Local-first, no uploads</span></span>
+      <span><kbd>⇧⌘A</kbd> <span class="lang-zh">区域截图</span><span class="lang-en">Region capture</span></span>
+      <span><kbd>⇧⌘R</kbd> <span class="lang-zh">区域录制</span><span class="lang-en">Record region</span></span>
+      <span><kbd>⇧⌘H</kbd> <span class="lang-zh">统一历史</span><span class="lang-en">Unified history</span></span>
+      <span><kbd>⇧⌘V</kbd> <span class="lang-zh">快速粘贴</span><span class="lang-en">Quick paste</span></span>
+      <span><span class="lang-zh">滚动长图</span><span class="lang-en">Scrolling capture</span></span>
+      <span><span class="lang-zh">GIF 导出</span><span class="lang-en">GIF export</span></span>
+      <span><span class="lang-zh">暂停续录</span><span class="lang-en">Pause &amp; resume recording</span></span>
+      <span><span class="lang-zh">OCR 文字搜索</span><span class="lang-en">OCR text search</span></span>
+      <span><span class="lang-zh">马赛克与模糊</span><span class="lang-en">Mosaic &amp; blur</span></span>
+      <span><span class="lang-zh">本地优先，不上传</span><span class="lang-en">Local-first, no uploads</span></span>
     </div>
   </div>
 
@@ -550,29 +571,29 @@ footer .row { display: flex; gap: 22px; }
   <section id="screenshots">
     <div class="wrap">
       <div class="head reveal">
-        <span class="eyebrow">Screenshots</span>
-        <h2>The real app, not renderings.</h2>
-        <p>Every frame below is a capture of CaptureKit itself.</p>
+        <span class="eyebrow"><span class="lang-zh">界面预览</span><span class="lang-en">Screenshots</span></span>
+        <h2><span class="lang-zh">真实应用，非效果图。</span><span class="lang-en">The real app, not renderings.</span></h2>
+        <p><span class="lang-zh">以下每一帧都是 CaptureKit 自身的真实截图。</span><span class="lang-en">Every frame below is a capture of CaptureKit itself.</span></p>
       </div>
 
       <figure class="shot-hero card wide reveal">
         <div class="core">
-          <img src="images/shot-editor.png" alt="The annotation editor: an arrow, a text callout, a rectangle, a numbered marker and a mosaic patch over a captured page" width="1600" height="1000" loading="lazy">
-          <figcaption>Annotate a capture: arrow, text, highlight, numbering — and mosaic over anything sensitive.</figcaption>
+          <img src="images/shot-editor.png" alt="标注编辑器：在截取的页面上使用箭头、文字、高亮框、编号与马赛克" data-alt-zh="标注编辑器：在截取的页面上使用箭头、文字、高亮框、编号与马赛克" data-alt-en="The annotation editor: an arrow, a text callout, a rectangle, a numbered marker and a mosaic patch over a captured page" width="1600" height="1000" loading="lazy">
+          <figcaption><span class="lang-zh">标注一次捕获：箭头、文字、高亮框、编号——再用马赛克遮住敏感信息。</span><span class="lang-en">Annotate a capture: arrow, text, highlight, numbering — and mosaic over anything sensitive.</span></figcaption>
         </div>
       </figure>
 
       <div class="bento shot-grid">
         <figure class="card three reveal">
           <div class="core">
-            <img src="images/shot-history.png" alt="Unified history window with categories, search and thumbnails" loading="lazy">
-            <figcaption>One local history for screenshots, recordings and clipboard</figcaption>
+            <img src="images/shot-history.png" alt="统一历史窗口：分类、搜索与缩略图" data-alt-zh="统一历史窗口：分类、搜索与缩略图" data-alt-en="Unified history window with categories, search and thumbnails" loading="lazy">
+            <figcaption><span class="lang-zh">截图、录制与剪贴板，一个本地资料库</span><span class="lang-en">One local history for screenshots, recordings and clipboard</span></figcaption>
           </div>
         </figure>
         <figure class="card three reveal">
           <div class="core">
-            <img src="images/shot-settings.png" alt="Settings window: launch options, OCR and update preferences" loading="lazy">
-            <figcaption>Settings — privacy, OCR, auto-update</figcaption>
+            <img src="images/shot-settings.png" alt="设置窗口：启动选项、OCR 与更新偏好" data-alt-zh="设置窗口：启动选项、OCR 与更新偏好" data-alt-en="Settings window: launch options, OCR and update preferences" loading="lazy">
+            <figcaption><span class="lang-zh">设置——隐私、OCR、自动更新</span><span class="lang-en">Settings — privacy, OCR, auto-update</span></figcaption>
           </div>
         </figure>
       </div>
@@ -583,72 +604,72 @@ footer .row { display: flex; gap: 22px; }
   <section id="features">
     <div class="wrap">
       <div class="head reveal">
-        <span class="eyebrow">Features</span>
-        <h2>Capture it once, find it forever.</h2>
-        <p>Every capture lands in one searchable, local history. No accounts, no cloud, no telemetry.</p>
+        <span class="eyebrow"><span class="lang-zh">功能</span><span class="lang-en">Features</span></span>
+        <h2><span class="lang-zh">捕获一次，永久可查。</span><span class="lang-en">Capture it once, find it forever.</span></h2>
+        <p><span class="lang-zh">每一次捕获都进入同一个可搜索的本地资料库。无账号，无云端，无遥测。</span><span class="lang-en">Every capture lands in one searchable, local history. No accounts, no cloud, no telemetry.</span></p>
       </div>
 
       <div class="bento">
         <article class="card wide reveal">
           <div class="core">
             <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" stroke-linecap="round"/><circle cx="12" cy="12" r="3"/></svg>
-            <h3>Capture any way you need</h3>
-            <p>Region with magnifier and window snapping, fullscreen, or pick a window by click. Delayed captures for menus, and scrolling capture stitches a whole page into one long image — auto-scroll or manual.</p>
-            <div class="fact">region · fullscreen · window · delay 1–10 s · scrolling</div>
+            <h3><span class="lang-zh">想怎么截就怎么截</span><span class="lang-en">Capture any way you need</span></h3>
+            <p><span class="lang-zh">区域截图带放大镜与窗口吸附，支持全屏，或单击选中窗口。延时截图应付菜单展开，滚动截图把整页拼接成长图——自动滚动或手动。</span><span class="lang-en">Region with magnifier and window snapping, fullscreen, or pick a window by click. Delayed captures for menus, and scrolling capture stitches a whole page into one long image — auto-scroll or manual.</span></p>
+            <div class="fact"><span class="lang-zh">区域 · 全屏 · 窗口 · 延时 1–10 秒 · 滚动长图</span><span class="lang-en">region · fullscreen · window · delay 1–10 s · scrolling</span></div>
           </div>
         </article>
 
         <article class="card half reveal">
           <div class="core sunk">
             <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <h3>Annotate before you share</h3>
-            <p>Arrow, text, mosaic, blur, numbering and more. Non-destructive crop, full undo/redo. What you see is exactly what exports.</p>
-            <div class="fact">8 annotation types · crop · ⌘Z / ⌘⇧Z</div>
+            <h3><span class="lang-zh">分享之前先标注</span><span class="lang-en">Annotate before you share</span></h3>
+            <p><span class="lang-zh">箭头、文字、马赛克、模糊、编号等八种标注；非破坏性裁剪，完整撤销/重做。所见即导出。</span><span class="lang-en">Arrow, text, mosaic, blur, numbering and more. Non-destructive crop, full undo/redo. What you see is exactly what exports.</span></p>
+            <div class="fact"><span class="lang-zh">8 种标注 · 裁剪 · ⌘Z / ⌘⇧Z</span><span class="lang-en">8 annotation types · crop · ⌘Z / ⌘⇧Z</span></div>
           </div>
         </article>
 
         <article class="card half reveal">
           <div class="core">
             <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none"/></svg>
-            <h3>Record video &amp; GIF</h3>
-            <p>Region, fullscreen or window. The control HUD never appears in the frame. Pause and resume — dead time is removed automatically.</p>
-            <div class="fact">H.264 mp4 · streaming GIF · optional system audio &amp; mic</div>
+            <h3><span class="lang-zh">录制视频与 GIF</span><span class="lang-en">Record video &amp; GIF</span></h3>
+            <p><span class="lang-zh">区域、全屏或窗口录制。控制 HUD 永不出现在画面里。暂停续录——间隙自动移除。</span><span class="lang-en">Region, fullscreen or window. The control HUD never appears in the frame. Pause and resume — dead time is removed automatically.</span></p>
+            <div class="fact"><span class="lang-zh">H.264 mp4 · 流式 GIF · 可选系统声音与麦克风</span><span class="lang-en">H.264 mp4 · streaming GIF · optional system audio &amp; mic</span></div>
           </div>
         </article>
 
         <article class="card half reveal">
           <div class="core sunk">
             <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 7h18M7 7V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v2M5 7l1 13h12l1-13" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <h3>Trim, speed, ship</h3>
-            <p>After recording: trim with a dual-handle timeline, adjust speed 0.5–2×, remove GIF frames, then export mp4 or GIF.</p>
-            <div class="fact">480p–1080p mp4 · 10–20 fps GIF · frame deletion</div>
+            <h3><span class="lang-zh">剪辑、变速、导出</span><span class="lang-en">Trim, speed, ship</span></h3>
+            <p><span class="lang-zh">录制完成即编辑：双把手时间轴裁剪、0.5–2× 变速、GIF 删帧，导出 mp4 或 GIF。</span><span class="lang-en">After recording: trim with a dual-handle timeline, adjust speed 0.5–2×, remove GIF frames, then export mp4 or GIF.</span></p>
+            <div class="fact"><span class="lang-zh">480p–1080p mp4 · 10–20 fps GIF · 删帧</span><span class="lang-en">480p–1080p mp4 · 10–20 fps GIF · frame deletion</span></div>
           </div>
         </article>
 
         <article class="card two reveal">
           <div class="core">
             <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8" stroke-linecap="round"/><path d="M8.5 11h5M11 8.5v5" stroke-linecap="round"/></svg>
-            <h3>Search inside images</h3>
-            <p>On-device OCR indexes text in every screenshot, so history search finds words inside the picture.</p>
-            <div class="fact">Vision framework · zh-Hans + English · fully offline</div>
+            <h3><span class="lang-zh">搜到图片里的字</span><span class="lang-en">Search inside images</span></h3>
+            <p><span class="lang-zh">本机 OCR 为每张截图建立文字索引，历史搜索能直接命中图片里的内容。</span><span class="lang-en">On-device OCR indexes text in every screenshot, so history search finds words inside the picture.</span></p>
+            <div class="fact"><span class="lang-zh">Vision 框架 · 中文 + 英文 · 完全离线</span><span class="lang-en">Vision framework · zh-Hans + English · fully offline</span></div>
           </div>
         </article>
 
         <article class="card two reveal">
           <div class="core sunk">
             <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 6V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2M4 8h11a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" stroke-linejoin="round"/></svg>
-            <h3>One history</h3>
-            <p>Screenshots, recordings and clipboard items in a single local library — categories, pinning, thumbnails, auto-clean.</p>
-            <div class="fact">SQLite index · list &amp; grid · Finder reveal</div>
+            <h3><span class="lang-zh">一个资料库</span><span class="lang-en">One history</span></h3>
+            <p><span class="lang-zh">截图、录制与剪贴板进入同一个本地库——分类、固定、缩略图、自动清理。</span><span class="lang-en">Screenshots, recordings and clipboard items in a single local library — categories, pinning, thumbnails, auto-clean.</span></p>
+            <div class="fact"><span class="lang-zh">SQLite 索引 · 列表与网格 · Finder 定位</span><span class="lang-en">SQLite index · list &amp; grid · Finder reveal</span></div>
           </div>
         </article>
 
         <article class="card two reveal">
           <div class="core">
             <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke-linecap="round"/></svg>
-            <h3>Clipboard, opt-in</h3>
-            <p>Clipboard history is off until you turn it on. Sensitive-content filtering and per-app exclusion come standard; quit can wipe everything.</p>
-            <div class="fact">off by default · sensitive filter · clear on quit</div>
+            <h3><span class="lang-zh">剪贴板，自愿开启</span><span class="lang-en">Clipboard, opt-in</span></h3>
+            <p><span class="lang-zh">剪贴板历史默认关闭，由你开启。敏感内容过滤与应用排除开箱即用；退出时可清空全部。</span><span class="lang-en">Clipboard history is off until you turn it on. Sensitive-content filtering and per-app exclusion come standard; quit can wipe everything.</span></p>
+            <div class="fact"><span class="lang-zh">默认关闭 · 敏感过滤 · 退出清空</span><span class="lang-en">off by default · sensitive filter · clear on quit</span></div>
           </div>
         </article>
       </div>
@@ -659,46 +680,46 @@ footer .row { display: flex; gap: 22px; }
   <section id="install">
     <div class="wrap">
       <div class="head reveal">
-        <span class="eyebrow">Install</span>
-        <h2>Four steps, about a minute.</h2>
-        <p>CaptureKit is distributed as a DMG from GitHub Releases — no App Store, no installer.</p>
+        <span class="eyebrow"><span class="lang-zh">安装</span><span class="lang-en">Install</span></span>
+        <h2><span class="lang-zh">四步，大约一分钟。</span><span class="lang-en">Four steps, about a minute.</span></h2>
+        <p><span class="lang-zh">CaptureKit 以 DMG 形式通过 GitHub Releases 分发——无需 App Store，无需安装器。</span><span class="lang-en">CaptureKit is distributed as a DMG from GitHub Releases — no App Store, no installer.</span></p>
       </div>
 
       <div class="steps">
         <div class="step reveal">
           <span class="no" aria-hidden="true"></span>
           <div>
-            <h3>Download the DMG</h3>
-            <p>Always grab the latest from the <a href="https://github.com/ahao430/CaptureKit/releases">GitHub Releases page</a> — the button at the top of this page always points there too.</p>
+            <h3><span class="lang-zh">下载 DMG</span><span class="lang-en">Download the DMG</span></h3>
+            <p><span class="lang-zh">始终从 <a href="https://github.com/ahao430/CaptureKit/releases">GitHub Releases 页面</a>获取最新版——本页顶部的下载按钮也始终指向那里。</span><span class="lang-en">Always grab the latest from the <a href="https://github.com/ahao430/CaptureKit/releases">GitHub Releases page</a> — the button at the top of this page always points there too.</span></p>
           </div>
         </div>
         <div class="step reveal">
           <span class="no" aria-hidden="true"></span>
           <div>
-            <h3>Drag CaptureKit into Applications</h3>
-            <p>Open the DMG and drag the app onto the Applications shortcut, then eject the DMG.</p>
+            <h3><span class="lang-zh">把 CaptureKit 拖进应用程序</span><span class="lang-en">Drag CaptureKit into Applications</span></h3>
+            <p><span class="lang-zh">打开 DMG，把应用拖到 Applications 快捷方式上，然后推出 DMG。</span><span class="lang-en">Open the DMG and drag the app onto the Applications shortcut, then eject the DMG.</span></p>
           </div>
         </div>
         <div class="step reveal">
           <span class="no" aria-hidden="true"></span>
           <div>
-            <h3>If macOS blocks the first launch</h3>
-            <p>CaptureKit is not notarized, so Gatekeeper may quarantine it on first open. After dragging it into <span class="mono">/Applications</span>, run this in Terminal to clear the quarantine flag:</p>
+            <h3><span class="lang-zh">如果 macOS 拦截首次启动</span><span class="lang-en">If macOS blocks the first launch</span></h3>
+            <p><span class="lang-zh">CaptureKit 暂未做 Apple 公证，首次打开可能被 Gatekeeper 隔离。拖入 <span class="mono">/Applications</span> 后，在终端运行以下命令清除隔离属性：</span><span class="lang-en">CaptureKit is not notarized, so Gatekeeper may quarantine it on first open. After dragging it into <span class="mono">/Applications</span>, run this in Terminal to clear the quarantine flag:</span></p>
             <div class="terminal">
               <span class="dot" aria-hidden="true">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
               </span>
               <code id="xattr-cmd">xattr -dr com.apple.quarantine /Applications/CaptureKit.app</code>
-              <button type="button" id="copy-btn" aria-label="Copy command">Copy</button>
+              <button type="button" id="copy-btn" aria-label="复制命令 / Copy command" data-copy-zh="复制" data-copy-en="Copy" data-copied-zh="已复制" data-copied-en="Copied"><span class="lang-zh">复制</span><span class="lang-en">Copy</span></button>
             </div>
-            <p>Only do this for software you trust and downloaded from the official CaptureKit releases.</p>
+            <p><span class="lang-zh">只对信任来源使用——请确认软件来自 CaptureKit 官方发布页。</span><span class="lang-en">Only do this for software you trust and downloaded from the official CaptureKit releases.</span></p>
           </div>
         </div>
         <div class="step reveal">
           <span class="no" aria-hidden="true"></span>
           <div>
-            <h3>Launch and grant Screen Recording</h3>
-            <p>The first capture triggers macOS's screen-recording permission prompt — allow it, then trigger the capture again. That's the only permission screenshots need.</p>
+            <h3><span class="lang-zh">启动并授权屏幕录制</span><span class="lang-en">Launch and grant Screen Recording</span></h3>
+            <p><span class="lang-zh">首次截图会触发系统的「屏幕录制」权限弹窗——允许后重新触发截图即可。这也是截图所需的唯一权限。</span><span class="lang-en">The first capture triggers macOS's screen-recording permission prompt — allow it, then trigger the capture again. That's the only permission screenshots need.</span></p>
           </div>
         </div>
       </div>
@@ -709,24 +730,28 @@ footer .row { display: flex; gap: 22px; }
   <section id="notes">
     <div class="wrap">
       <div class="head reveal">
-        <span class="eyebrow">Good to know</span>
-        <h2>First-launch notes.</h2>
+        <span class="eyebrow"><span class="lang-zh">使用须知</span><span class="lang-en">Good to know</span></span>
+        <h2><span class="lang-zh">首次启动须知。</span><span class="lang-en">First-launch notes.</span></h2>
       </div>
       <div class="notes">
         <div class="note reveal">
-          <h3>Is removing quarantine safe?</h3>
-          <p>The <span class="mono">xattr</span> command only clears the flag macOS adds to downloaded files; it doesn't verify or change the app. Judge the source, then decide — that's exactly what notarization would otherwise do for you.</p>
+          <h3><span class="lang-zh">清除隔离安全吗？</span><span class="lang-en">Is removing quarantine safe?</span></h3>
+          <p><span class="lang-zh"><span class="mono">xattr</span> 命令只清除 macOS 给下载文件添加的标记，不会验证或改动应用本身。判断来源、再作决定——这正是公证本会替你做的事。</span><span class="lang-en">The <span class="mono">xattr</span> command only clears the flag macOS adds to downloaded files; it doesn't verify or change the app. Judge the source, then decide — that's exactly what notarization would otherwise do for you.</span></p>
         </div>
         <div class="note reveal">
-          <h3>How updates work</h3>
-          <p>CaptureKit checks GitHub Releases once a day through the Sparkle framework. Update packages are signed (EdDSA) and installed only after you confirm. Manual check any time: menu-bar right-click → <span class="mono">Check for Updates…</span>. After an update, if macOS re-quarantines the app, run the same <span class="mono">xattr</span> command again.</p>
+          <h3><span class="lang-zh">更新如何工作</span><span class="lang-en">How updates work</span></h3>
+          <p><span class="lang-zh">CaptureKit 通过 Sparkle 每天检查一次 GitHub Releases。更新包经 EdDSA 签名，确认后才会安装。也可随时手动检查：菜单栏右键 → <span class="mono">检查更新…</span>。更新后若再次被隔离，重跑同一条 <span class="mono">xattr</span> 命令即可。</span><span class="lang-en">CaptureKit checks GitHub Releases once a day through the Sparkle framework. Update packages are signed (EdDSA) and installed only after you confirm. Manual check any time: menu-bar right-click → <span class="mono">Check for Updates…</span>. After an update, if macOS re-quarantines the app, run the same <span class="mono">xattr</span> command again.</span></p>
         </div>
         <div class="note reveal">
-          <h3>Where your data lives</h3>
+          <h3><span class="lang-zh">为什么每次启动都要授权屏幕录制？</span><span class="lang-en">Why does macOS ask for screen recording again?</span></h3>
+          <p><span class="lang-zh">两种情况：① 应用正从临时位置运行（常见于直接从 DMG 打开）——按上方安装步骤把应用放入「应用程序」文件夹即可；② 每个新版本首次使用需要重新授权一次，这是未做 Apple 公证分发的固有限制。同一版本从「应用程序」文件夹启动不会重复询问。</span><span class="lang-en">Two cases: ① the app is running from a temporary location (common when opened directly from the DMG) — finish the install steps above and launch from Applications; ② each new version needs one re-grant on first use, an inherent limit of non-notarized distribution. The same version launched from Applications won't ask again.</span></p>
+        </div>
+        <div class="note reveal">
+          <h3><span class="lang-zh">你的数据在哪里</span><span class="lang-en">Where your data lives</span></h3>
           <ul>
-            <li>All captures, the history database and settings stay in <span class="mono">~/Library/Application Support/CaptureKit/</span></li>
-            <li>Clipboard history is off by default; deleting history deletes the files with it</li>
-            <li>OCR runs locally via the Vision framework — nothing is uploaded anywhere</li>
+            <li><span class="lang-zh">所有捕获、历史数据库与设置都在 <span class="mono">~/Library/Application Support/CaptureKit/</span></span><span class="lang-en">All captures, the history database and settings stay in <span class="mono">~/Library/Application Support/CaptureKit/</span></span></li>
+            <li><span class="lang-zh">剪贴板历史默认关闭；删除历史会同时删除关联文件</span><span class="lang-en">Clipboard history is off by default; deleting history deletes the files with it</span></li>
+            <li><span class="lang-zh">OCR 由 Vision 框架在本机完成——任何内容都不会上传</span><span class="lang-en">OCR runs locally via the Vision framework — nothing is uploaded anywhere</span></li>
           </ul>
         </div>
       </div>
@@ -736,18 +761,18 @@ footer .row { display: flex; gap: 22px; }
   <!-- Closing -->
   <section class="closing">
     <div class="wrap">
-      <span class="eyebrow reveal">Local-first by design</span>
-      <h2 class="reveal">Everything stays on your Mac.</h2>
-      <p class="reveal">No accounts. No cloud. No telemetry. Just a fast, native tool that gets out of the way.</p>
+      <span class="eyebrow reveal"><span class="lang-zh">本地优先的设计</span><span class="lang-en">Local-first by design</span></span>
+      <h2 class="reveal"><span class="lang-zh">一切都留在你的 Mac 上。</span><span class="lang-en">Everything stays on your Mac.</span></h2>
+      <p class="reveal"><span class="lang-zh">无账号，无云端，无遥测。只有一个快速、原生、不打扰你的工具。</span><span class="lang-en">No accounts. No cloud. No telemetry. Just a fast, native tool that gets out of the way.</span></p>
       <div class="reveal">
         <a class="cta-primary download" href="https://github.com/ahao430/CaptureKit/releases/latest/download/CaptureKit.dmg">
-          Download for macOS
+          <span class="lang-zh">下载 macOS 版</span><span class="lang-en">Download for macOS</span>
           <span class="tail" aria-hidden="true">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
           </span>
         </a>
       </div>
-      <div class="fine reveal">macOS 14+ · Universal binary · Sparkle auto-update</div>
+      <div class="fine reveal">macOS 14+ · <span class="lang-zh">Universal 二进制</span><span class="lang-en">Universal binary</span> · <span class="lang-zh">Sparkle 自动更新</span><span class="lang-en">Sparkle auto-update</span></div>
     </div>
   </section>
 
@@ -757,17 +782,45 @@ footer .row { display: flex; gap: 22px; }
   <div class="wrap">
     <span>CaptureKit — Capture. Organize. Reuse.</span>
     <div class="row">
-      <a href="https://github.com/ahao430/CaptureKit">Source</a>
+      <a href="https://github.com/ahao430/CaptureKit"><span class="lang-zh">源码</span><span class="lang-en">Source</span></a>
       <a href="https://github.com/ahao430/CaptureKit/releases">Releases</a>
       <a href="https://github.com/ahao430/CaptureKit/issues">Issues</a>
     </div>
-    <span>Built with Swift, AppKit &amp; ScreenCaptureKit</span>
+    <span><span class="lang-zh">基于 Swift、AppKit 与 ScreenCaptureKit 构建</span><span class="lang-en">Built with Swift, AppKit &amp; ScreenCaptureKit</span></span>
   </div>
 </footer>
 
 <script>
 (function () {
   'use strict';
+  // Bilingual：默认中文，localStorage 记忆选择；aria/alt 经 data 属性切换
+  var html = document.documentElement;
+  var currentLang = 'zh-CN';
+  try {
+    if (localStorage.getItem('ck-lang') === 'en') currentLang = 'en';
+  } catch (e) { /* private mode — keep default */ }
+  function applyLang(l) {
+    currentLang = l;
+    html.setAttribute('lang', l);
+    document.querySelectorAll('[data-aria-zh]').forEach(function (el) {
+      el.setAttribute('aria-label', l === 'en' ? el.getAttribute('data-aria-en') : el.getAttribute('data-aria-zh'));
+    });
+    document.querySelectorAll('[data-alt-zh]').forEach(function (el) {
+      el.setAttribute('alt', l === 'en' ? el.getAttribute('data-alt-en') : el.getAttribute('data-alt-zh'));
+    });
+    var btn = document.getElementById('lang-toggle');
+    if (btn) btn.textContent = (l === 'en') ? '中文' : 'EN';
+  }
+  applyLang(currentLang);
+  var langBtn = document.getElementById('lang-toggle');
+  if (langBtn) {
+    langBtn.addEventListener('click', function () {
+      var next = (currentLang === 'en') ? 'zh-CN' : 'en';
+      applyLang(next);
+      try { localStorage.setItem('ck-lang', next); } catch (e) { /* ignore */ }
+    });
+  }
+
   // Scroll entry
   var observer = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
@@ -786,8 +839,9 @@ footer .row { display: flex; gap: 22px; }
     btn.addEventListener('click', function () {
       var text = cmd.textContent;
       var done = function () {
-        btn.textContent = 'Copied';
-        setTimeout(function () { btn.textContent = 'Copy'; }, 1600);
+        var zh = currentLang !== 'en';
+        btn.textContent = zh ? '已复制' : 'Copied';
+        setTimeout(function () { btn.textContent = zh ? '复制' : 'Copy'; }, 1600);
       };
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(done, function () { fallback(); });

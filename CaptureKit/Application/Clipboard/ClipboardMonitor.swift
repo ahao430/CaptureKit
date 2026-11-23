@@ -89,7 +89,10 @@ final class HistoryService: ObservableObject {
     func recordRecording(url: URL, mode: RecordingMode, duration: Double, fps: Int) async {
         let kind: ContentFileStore.Kind = mode == .video ? .video : .gif
         // 录制产物已在 Recordings 目录；复制进 Content 统一管理
-        guard let data = try? Data(contentsOf: url) else { return }
+        guard let data = try? Data(contentsOf: url) else {
+            Log.storage.error("Recording file unreadable, not recorded: \(url.path, privacy: .public)")
+            return
+        }
         let hash = ContentHasher.hash(data: data)
         if let existing = try? await repository.findByHashAsync(hash) {
             try? await repository.touchAsync(id: existing.id)

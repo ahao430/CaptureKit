@@ -35,6 +35,7 @@ final class SettingsWindowController {
         let hosting = NSHostingController(rootView: contentView)
 
         let window = NSWindow(contentViewController: hosting)
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.title = "CaptureKit 设置"
         window.styleMask.insert(.titled)
         window.styleMask.insert(.closable)
