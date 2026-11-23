@@ -118,14 +118,9 @@ final class OverlaySelectionModel {
 
     var hasAnnotations: Bool { !annotations.isEmpty }
 
-    /// 是否应显示放大镜：
-    /// - 创建/调整/移动中（拖拽取色对齐边缘）
-    /// - 无选区悬停时（DingTalk 式悬停取色）
-    /// 均要求鼠标点与快照可用。
+    /// 是否应显示放大镜：鼠标点与快照可用即显示（全程自动取色，含已有选区悬停）。
     var showsMagnifier: Bool {
-        guard currentDragPoint != nil, !snapshots.isEmpty else { return false }
-        if isInteracting { return true }
-        return selection == nil
+        currentDragPoint != nil && !snapshots.isEmpty
     }
 
     /// 供命中的窗口列表（过滤掉无效 frame）。

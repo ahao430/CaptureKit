@@ -85,12 +85,12 @@ final class PixelColorTests: XCTestCase {
         XCTAssertFalse(model.showsMagnifier)
 
         model.snapshots = [makeSplitSnapshot()]
-        // 无选区悬停 → 显示（取色）
+        // 悬停 → 显示（自动取色）
         XCTAssertTrue(model.showsMagnifier)
 
-        // 有选区且非交互 → 不显示
+        // 有选区悬停 → 仍显示（全程跟随）
         model.selection = CGRect(x: 0, y: 0, width: 2, height: 1)
-        XCTAssertFalse(model.showsMagnifier)
+        XCTAssertTrue(model.showsMagnifier)
 
         // 交互中（创建/调整/移动）→ 显示
         model.interaction = .creating(start: .zero)

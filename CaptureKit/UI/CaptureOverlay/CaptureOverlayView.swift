@@ -50,6 +50,9 @@ final class CaptureOverlayView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    /// 成为第一响应者：keyDown/flagsChanged（Shift 切换取色格式）稳定送达
+    override var acceptsFirstResponder: Bool { true }
+
     // MARK: - 光标
 
     override func resetCursorRects() {
@@ -300,15 +303,18 @@ final class CaptureOverlayView: NSView {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        // 无选区且非交互时：窗口悬停高亮 + 放大镜悬停取色
-        guard model.selection == nil, !model.isInteracting else { return }
         let point = globalPoint(event)
-        let newHover = smallestWindowFrame(containing: point)
-        let hoverChanged = newHover != model.hoverWindowFrame
+        // 放大镜/取色全程跟随鼠标（含已有选区悬停，钉钉式自动取色）
         let pointMoved = model.currentDragPoint != point
-        model.hoverWindowFrame = newHover
         model.currentDragPoint = point
-        if hoverChanged || pointMoved {
+        if model.selection == nil, !model.isInteracting {
+            let newHover = smallestWindowFrame(containing: point)
+            let hoverChanged = newHover != model.hoverWindowFrame
+            model.hoverWindowFrame = newHover
+            if hoverChanged || pointMoved {
+                delegate?.overlaySelectionDidChange()
+            }
+        } else if pointMoved {
             delegate?.overlaySelectionDidChange()
         }
     }
@@ -532,6 +538,7 @@ final class CaptureOverlayView: NSView {
               let start = model.annotateDragStart,
               var draft = model.draftAnnotation else { return }
         let local = annotateLocal(globalPoint, selection: selection)
+        model.currentDragPoint = globalPoint
 
         switch draft.geometry {
         case .arrow(let from, _):

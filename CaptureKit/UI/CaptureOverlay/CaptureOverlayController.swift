@@ -98,6 +98,10 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
         let toolbarPanel = SelectionToolbarPanel()
         toolbarPanel.onToolChange = { [weak self] tool in
             guard let self else { return }
+            // 切工具前先结束文字编辑（避免输入框残留导致状态卡死）
+            if self.overlayTextEditingIsActive() {
+                self.endTextEditing(commit: true)
+            }
             // 再点当前工具 = 取消，回到选择
             if self.model.activeTool == tool {
                 self.model.activeTool = nil

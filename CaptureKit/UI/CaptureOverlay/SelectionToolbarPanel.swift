@@ -61,6 +61,9 @@ final class SelectionToolbarPanel: NSPanel {
         buildsContent()
     }
 
+    /// 纯点击目标：永远不成为 key window，避免点击工具栏偷走键盘焦点（Esc/取色失效）
+    override var canBecomeKey: Bool { false }
+
     // MARK: - 构建
 
     private func buildsContent() {

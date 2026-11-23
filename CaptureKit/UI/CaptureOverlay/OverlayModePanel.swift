@@ -28,6 +28,9 @@ final class OverlayModePanel: NSPanel {
         buildsContent()
     }
 
+    /// 纯点击/拖动目标：不成为 key window，键盘焦点始终留在 Overlay
+    override var canBecomeKey: Bool { false }
+
     private func buildsContent() {
         // 深色毛玻璃背景
         let effect = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: 380, height: 52))

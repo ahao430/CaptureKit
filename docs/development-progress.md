@@ -468,3 +468,12 @@ CaptureResultToast 增加 showText 纯文本变体（与图片 toast 共用定�
   didEndEditing 的模糊语义；点击其他处提交并吞掉该次点击
 - Overlay present 时 NSApp.activate（热键触发路径的键盘保障）
 - 删除 OverlayTextEntryPanel；CaptureOverlayController 改为 NSObject 子类以实现 NSTextFieldDelegate
+
+## 自动取色 + Shift 切换 + 编号卡死修复（2026-11-23，第七轮反馈）
+
+1. 自动取色：showsMagnifier 改为「鼠标点+快照可用即显示」，mouseMoved 全程更新
+   currentDragPoint（含已有选区悬停、标注草稿拖拽），不再需要按住拖拽才出取色
+2. Shift 切换 RGB/HEX 失效根因：CaptureOverlayView 未声明 acceptsFirstResponder，
+   flagsChanged 不送达（keyDown 能工作属侥幸路径）。补上声明
+3. 编号后无法退出/按钮无响应根因：工具栏/模式胶囊面板可被点击成为 key window，
+   一次点击即偷走键盘焦点。两个面板 canBecomeKey=false；切工具先结束文字编辑
