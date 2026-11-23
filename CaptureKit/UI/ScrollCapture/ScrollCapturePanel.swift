@@ -1,22 +1,32 @@
 import AppKit
 
-/// 滚动截图会话控制条（钉钉式显式流程）：
-/// [☑ 自动滚动] [已采集 N 帧 · 提示] ｜ [结束并保存] [取消]
-/// 会话由用户显式开始（选区中央 ▶）与显式结束；不会自动完成。
+/// 滚动截图会话控制条（钉钉式显式流程，两行）：
+/// 上行：提示文字；下行：[☑ 自动滚动] [已采集 N 帧] ｜ [■ 停止] [保存图片] [取消] [✓ 复制]
+///
+/// - 采集中：四个动作按钮均可用（可直接「保存图片」/「✓ 复制」一步完成，或先「停止」再选）。
+/// - 停止后（复核态）：隐藏自动滚动与停止，保留 保存图片 / 取消 / ✓ 复制。
 @MainActor
 final class ScrollCapturePanel: NSPanel {
-    var onFinish: (() -> Void)?
+    var onStop: (() -> Void)?
+    var onSave: (() -> Void)?
+    var onCopy: (() -> Void)?
     var onCancel: (() -> Void)?
     /// 自动滚动开关（需辅助功能权限；不可用时由协调器回退并引导授权）
     var onAutoScrollToggle: ((Bool) -> Void)?
 
-    private let frameLabel = NSTextField(labelWithString: "已采集 1 帧")
-    private let hintLabel = NSTextField(labelWithString: "在选区内手动滚动，或把鼠标移到选区下边缘滚动")
+    private let hintLabel = NSTextField(labelWithString: "")
+    private let frameLabel = NSTextField(labelWithString: "已采集 0 帧")
     private let autoScrollCheckbox = NSButton(checkboxWithTitle: "自动滚动", target: nil, action: nil)
+    private let stopButton = NSButton(title: "■ 停止", target: nil, action: nil)
+    private let saveButton = NSButton(title: "保存图片", target: nil, action: nil)
+    private let copyButton = NSButton(title: "✓ 复制", target: nil, action: nil)
+    private let cancelButton = NSButton(title: "取消", target: nil, action: nil)
+
+    private let panelSize = NSSize(width: 440, height: 66)
 
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 470, height: 44),
+            contentRect: NSRect(origin: .zero, size: panelSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -35,12 +45,18 @@ final class ScrollCapturePanel: NSPanel {
     override var canBecomeKey: Bool { false }
 
     private func buildsContent() {
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 470, height: 44))
+        let container = NSView(frame: NSRect(origin: .zero, size: panelSize))
         container.wantsLayer = true
         container.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.97).cgColor
         container.layer?.cornerRadius = 10
         container.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.5).cgColor
         container.layer?.borderWidth = 0.5
+
+        hintLabel.font = .systemFont(ofSize: 10)
+        hintLabel.textColor = .secondaryLabelColor
+        hintLabel.lineBreakMode = .byTruncatingTail
+        hintLabel.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(hintLabel)
 
         autoScrollCheckbox.target = self
         autoScrollCheckbox.action = #selector(autoScrollToggled)
@@ -54,38 +70,38 @@ final class ScrollCapturePanel: NSPanel {
         frameLabel.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(frameLabel)
 
-        hintLabel.font = .systemFont(ofSize: 10)
-        hintLabel.textColor = .secondaryLabelColor
-        hintLabel.lineBreakMode = .byTruncatingTail
-        hintLabel.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(hintLabel)
-
-        let finishButton = NSButton(title: "结束并保存", target: self, action: #selector(finishTapped))
-        finishButton.bezelStyle = .rounded
-        finishButton.controlSize = .small
-        finishButton.keyEquivalent = "\r"
-        finishButton.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(finishButton)
-
-        let cancelButton = NSButton(title: "取消", target: self, action: #selector(cancelTapped))
-        cancelButton.bezelStyle = .rounded
-        cancelButton.controlSize = .small
-        cancelButton.keyEquivalent = "\u{1b}"
-        cancelButton.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(cancelButton)
+        func configure(_ button: NSButton, _ action: Selector, tooltip: String) {
+            button.target = self
+            button.action = action
+            button.bezelStyle = .rounded
+            button.controlSize = .small
+            button.toolTip = tooltip
+            button.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(button)
+        }
+        configure(stopButton, #selector(stopTapped), tooltip: "停止滚动并拼接，随后可选择保存 / 复制 / 取消")
+        configure(saveButton, #selector(saveTapped), tooltip: "拼接并保存为 PNG")
+        configure(copyButton, #selector(copyTapped), tooltip: "拼接并复制到剪贴板")
+        configure(cancelButton, #selector(cancelTapped), tooltip: "放弃本次滚动截图")
 
         NSLayoutConstraint.activate([
+            hintLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+            hintLabel.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor, constant: -12),
+            hintLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 7),
+
             autoScrollCheckbox.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
-            autoScrollCheckbox.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            autoScrollCheckbox.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8),
             frameLabel.leadingAnchor.constraint(equalTo: autoScrollCheckbox.trailingAnchor, constant: 10),
-            frameLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            hintLabel.leadingAnchor.constraint(equalTo: frameLabel.trailingAnchor, constant: 8),
-            hintLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            hintLabel.trailingAnchor.constraint(lessThanOrEqualTo: cancelButton.leadingAnchor, constant: -8),
-            cancelButton.trailingAnchor.constraint(equalTo: finishButton.leadingAnchor, constant: -6),
-            cancelButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            finishButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
-            finishButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            frameLabel.centerYAnchor.constraint(equalTo: autoScrollCheckbox.centerYAnchor),
+
+            cancelButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
+            cancelButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8),
+            copyButton.trailingAnchor.constraint(equalTo: cancelButton.leadingAnchor, constant: -6),
+            copyButton.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
+            saveButton.trailingAnchor.constraint(equalTo: copyButton.leadingAnchor, constant: -6),
+            saveButton.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
+            stopButton.trailingAnchor.constraint(equalTo: saveButton.leadingAnchor, constant: -6),
+            stopButton.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
         ])
 
         contentView = container
@@ -111,6 +127,22 @@ final class ScrollCapturePanel: NSPanel {
         if !available {
             autoScrollCheckbox.state = .off
         }
+    }
+
+    /// 拼接进行中：禁用动作按钮。
+    func setBusy(_ busy: Bool) {
+        for button in [stopButton, saveButton, copyButton] {
+            button.isEnabled = !busy
+        }
+    }
+
+    /// 停止后的复核态：隐藏自动滚动与停止，仅保留 保存图片 / 取消 / ✓ 复制。
+    func showReviewing(frameCount: Int) {
+        autoScrollCheckbox.isHidden = true
+        stopButton.isHidden = true
+        frameLabel.stringValue = "已拼接 \(frameCount) 帧"
+        setHint("已停止：保存图片、✓ 复制到剪贴板，或取消")
+        setBusy(false)
     }
 
     // MARK: - 显隐
@@ -142,6 +174,8 @@ final class ScrollCapturePanel: NSPanel {
     @objc private func autoScrollToggled() {
         onAutoScrollToggle?(autoScrollCheckbox.state == .on)
     }
-    @objc private func finishTapped() { onFinish?() }
+    @objc private func stopTapped() { onStop?() }
+    @objc private func saveTapped() { onSave?() }
+    @objc private func copyTapped() { onCopy?() }
     @objc private func cancelTapped() { onCancel?() }
 }

@@ -15,8 +15,9 @@ enum ScrollCaptureState: Equatable {
 
 /// 滚动截图协调器（plan.md §2.5 基础版）。
 ///
-/// 流程：区域选择（复用 Overlay）→ 采集循环（定时抓帧，重复帧自动跳过）
-/// → 用户点「完成」→ 帧间位移匹配 + 拼接 → 交付编辑器 + 历史入库。
+/// 流程：区域选择（复用 Overlay，选区中央 ▶ 开始）→ 采集循环（定时抓帧，重复帧自动跳过）
+/// → 用户选择 停止 / 保存图片 / 取消 / ✓ 复制（钉钉式，不会自动结束）
+/// → 帧间位移匹配 + 拼接 → 复制到剪贴板 或 保存面板；结果采纳后历史入库。
 /// 手动滚动方案：不注入滚动事件（免辅助功能权限，ADR-026），由用户在目标窗口自行滚动。
 @MainActor
 final class ScrollCoordinator {
@@ -42,8 +43,11 @@ final class ScrollCoordinator {
     private var consecutiveStillFrames = 0
 
     var errorHandler: ((CaptureKitError) -> Void)?
-    /// 拼接结果交付（编辑器 + 历史由 AppEnvironment 注入）
+    /// 拼接结果被采纳（已复制或已保存）→ 历史入库（AppEnvironment 注入）
     var onStitched: ((CGImage) -> Void)?
+
+    /// 停止后保留的拼接结果（复核态选择 保存 / 复制 / 取消）
+    private var stitchedImage: CGImage?
 
     init(engine: ScreenCaptureEngine, settings: SettingsStore) {
         self.engine = engine
@@ -72,6 +76,8 @@ final class ScrollCoordinator {
     // MARK: - 入口
 
     func start() {
+        // 上一次复核态还开着：视为放弃，先收起
+        if panel != nil { teardown() }
         guard state == .idle || state == .completed || state == .cancelled || state == .failed(nil) else { return }
         guard ensurePermission() else { return }
         state = .selecting
@@ -91,6 +97,7 @@ final class ScrollCoordinator {
 
     /// 在已选区域上直接开始滚动采集（截图 Overlay 工具栏 / 右键菜单入口）。
     func startCapturing(in rect: CGRect) {
+        if panel != nil { teardown() }
         guard state == .idle || state == .completed || state == .cancelled || state == .failed(nil) else {
             Log.capture.warning("Scroll capture already active, ignore request from capture overlay")
             return
@@ -113,7 +120,9 @@ final class ScrollCoordinator {
         autoScroll = accessibilityAvailable && settings.settings.capture.scrollAutoScroll
 
         let panel = ScrollCapturePanel()
-        panel.onFinish = { [weak self] in self?.finish() }
+        panel.onStop = { [weak self] in self?.stop() }
+        panel.onSave = { [weak self] in self?.save() }
+        panel.onCopy = { [weak self] in self?.copyToClipboard() }
         panel.onCancel = { [weak self] in self?.cancel() }
         panel.onAutoScrollToggle = { [weak self] on in self?.setAutoScroll(on) }
         panel.setAutoScrollAvailable(accessibilityAvailable)
@@ -121,7 +130,7 @@ final class ScrollCoordinator {
         self.panel = panel
         if accessibilityAvailable {
             panel.setHint(autoScroll
-                ? "自动滚动中… 也可手动滚动 · 完成后点「结束并保存」"
+                ? "自动滚动中… 也可手动滚动 · 点「保存图片」或「✓ 复制」结束"
                 : "在选区内手动滚动，或把鼠标移到选区下边缘滚动")
         } else {
             panel.setHint("手动滚动中 · 自动/鼠标滚动需「辅助功能」权限（点「自动滚动」授权）")
@@ -167,7 +176,7 @@ final class ScrollCoordinator {
         }
         autoScroll = true
         panel?.setAutoScroll(true)
-        panel?.setHint("自动滚动中… 也可手动滚动 · 完成后点「结束并保存」")
+        panel?.setHint("自动滚动中… 也可手动滚动 · 点「保存图片」或「✓ 复制」结束")
     }
 
     /// 鼠标驱动滚动（需辅助功能权限）：鼠标在选区内靠近下边缘 → 向下滚；上边缘 → 向上滚。
@@ -183,8 +192,8 @@ final class ScrollCoordinator {
     private func captureOneFrame() {
         guard state == .capturing, let rect = regionRect else { return }
         guard frames.count < maxFrames else {
-            Log.capture.info("Scroll capture hit frame cap, auto-finishing")
-            finish()
+            Log.capture.info("Scroll capture hit frame cap, stopping")
+            stop()
             return
         }
         // 自动滚动：注入滚轮事件（路由到选区中心下的窗口）
@@ -226,19 +235,19 @@ final class ScrollCoordinator {
         panel?.update(frameCount: frames.count)
     }
 
-    // MARK: - 完成 / 取消
+    // MARK: - 停止 / 保存 / 复制 / 取消（钉钉式：显式结束，不自动完成）
 
-    func finish() {
+    /// 停止采集并拼接，随后执行 action（复核 / 保存 / 复制）。
+    private func endCapture(then action: @escaping (CGImage?) -> Void) {
         guard state == .capturing else { return }
         captureTimer?.invalidate()
         captureTimer = nil
         edgeScrollTimer?.invalidate()
         edgeScrollTimer = nil
-        panel?.dismiss()
-        panel = nil
-        regionBorder?.hide()
-        regionBorder = nil
+        autoScroll = false
         state = .stitching
+        panel?.setBusy(true)
+        panel?.setHint("正在拼接…")
 
         let captured = frames
         Task { [weak self] in
@@ -247,23 +256,89 @@ final class ScrollCoordinator {
             let result = await Task.detached(priority: .userInitiated) {
                 ScrollImageStitcher.stitch(frames: captured)
             }.value
-
+            let image = result.image
+            let lowConfidence = result.lowConfidenceSegments
+            let skipped = result.skippedDuplicates
             await MainActor.run {
                 self.state = .completed
-                if let image = result.image {
-                    if result.lowConfidenceSegments > 0 {
-                        Log.capture.warning("Scroll stitch had \(result.lowConfidenceSegments) low-confidence segment(s)")
+                self.stitchedImage = image
+                if image != nil {
+                    if lowConfidence > 0 {
+                        Log.capture.warning("Scroll stitch had \(lowConfidence) low-confidence segment(s)")
                     }
-                    Log.capture.info("Scroll stitched (\(result.skippedDuplicates) duplicate frame(s) skipped)")
-                    self.onStitched?(image)
-                } else {
-                    self.errorHandler?(.captureFailed(underlying: nil))
+                    Log.capture.info("Scroll stitched (\(skipped) duplicate frame(s) skipped)")
                 }
+                action(image)
             }
         }
     }
 
+    /// 停止：拼接后留在控制条，由用户选择 保存图片 / ✓ 复制 / 取消。
+    func stop() {
+        endCapture { [weak self] image in
+            guard let self else { return }
+            guard image != nil else {
+                self.errorHandler?(.captureFailed(underlying: nil))
+                self.teardown()
+                return
+            }
+            self.panel?.showReviewing(frameCount: self.frames.count)
+        }
+    }
+
+    /// 保存图片：采集中 → 先停止拼接；复核态 → 直接保存。
+    func save() {
+        if state == .completed, let image = stitchedImage {
+            deliver(image, save: true)
+        } else if state == .capturing {
+            endCapture { [weak self] image in self?.deliverIfAvailable(image, save: true) }
+        }
+    }
+
+    /// ✓ 复制到剪贴板：采集中 → 先停止拼接；复核态 → 直接复制。
+    func copyToClipboard() {
+        if state == .completed, let image = stitchedImage {
+            deliver(image, save: false)
+        } else if state == .capturing {
+            endCapture { [weak self] image in self?.deliverIfAvailable(image, save: false) }
+        }
+    }
+
+    private func deliverIfAvailable(_ image: CGImage?, save: Bool) {
+        guard let image else {
+            errorHandler?(.captureFailed(underlying: nil))
+            teardown()
+            return
+        }
+        deliver(image, save: save)
+    }
+
+    /// 结果交付：保存 → 保存面板；复制 → 剪贴板 + 提示。采纳后历史入库并收起会话 UI。
+    private func deliver(_ image: CGImage, save: Bool) {
+        let anchor = regionRect ?? .zero
+        onStitched?(image)
+        if save {
+            SavePanelPresenter.presentPNGPanel(for: image)
+        } else {
+            do {
+                try ClipboardWriter.copy(image)
+                CaptureResultToast.show(image: image, message: "已复制到剪贴板", anchorRect: anchor)
+            } catch {
+                errorHandler?((error as? CaptureKitError) ?? .captureFailed(underlying: error))
+            }
+        }
+        Log.capture.info("Scroll capture delivered (save=\(save, privacy: .public))")
+        teardown()
+    }
+
     func cancel() {
+        teardown()
+        state = .cancelled
+        Log.capture.info("Scroll capture cancelled")
+    }
+
+    /// 收起会话 UI 并清空会话数据。
+    private func teardown() {
         captureTimer?.invalidate()
         captureTimer = nil
         edgeScrollTimer?.invalidate()
@@ -272,10 +347,9 @@ final class ScrollCoordinator {
         panel = nil
         regionBorder?.hide()
         regionBorder = nil
+        stitchedImage = nil
         frames = []
         regionRect = nil
-        state = .cancelled
-        Log.capture.info("Scroll capture cancelled")
     }
 
     // MARK: - 权限

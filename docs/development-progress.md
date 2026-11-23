@@ -553,3 +553,15 @@ CGEvent 回归：OCR 后 overlay/工具栏全部存活，撤销按钮仍可点�
 修复 `AutoScroller.postScrollDown`：按坐标找到最前普通窗口（layer 0，排除自身进程）的
 所属 PID，用 `CGEvent.postToPid` 直投——坐标仅供对方判断滚哪个视图，光标不再被移动；
 找不到目标进程时回退为不设置坐标的 HID 注入。新增 `AutoScrollerRoutingTests`（4 例）。
+
+## 长截图结束方式：停止 / 保存图片 / 取消 / ✓ 复制（2026-11-24）
+
+用户反馈「结束后直接弹保存」不符合钉钉：钉钉提供 停止播放、保存图片、取消、对号（复制）。
+
+- `ScrollCapturePanel` 改两行控制条：提示行 + [☑ 自动滚动][已采集 N 帧]｜[■ 停止][保存图片][取消][✓ 复制]
+- 采集中四个动作均可直接用：保存图片 / ✓ 复制 一步完成（先拼接再交付）；「停止」只拼接并进入
+  复核态（隐藏自动滚动与停止，保留 保存 / 取消 / ✓）
+- `ScrollCoordinator`：`endCapture(then:)` 统一「停采集 → 后台拼接 → 回调」；
+  `deliver(_:save:)` 复制走 `ClipboardWriter` + toast、保存走 `SavePanelPresenter`；
+  `onStitched` 语义改为「结果被采纳 → 历史入库」，AppEnvironment 不再代弹保存面板
+- 帧数上限触发时改为进入复核态（不再直接交付）
