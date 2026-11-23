@@ -321,3 +321,22 @@ Phase 5 批次 2 已完成：QuickAccessPanel（⌘⇧V：搜索/键盘导航/En
 开发环境注意（本机 Xcode 26.6 / macOS 27.2）：scheme 的 build targets 同时包含 app 与测试 target 时，xcodebuild 会卡死在 CreateBuildDescription（SWBBuildService 挂起，100% 复现；-target 模式与纯 app scheme 正常）。本地构建用 `xcodebuild -target CaptureKit`；CI（macos-26 runner）行为待首次流水线验证，若同样挂死需将 test 改为独立 scheme。
 
 人工验收：图标在 Dock/关于面板/Finder 显示是否清晰；主页截图区块渲染；GitHub 首次 CI 与 Release 流水线（见 docs/releasing.md）。
+
+## 首次发布闭环（v0.1.0，全部线上实证）
+
+| 里程碑 | 结果 |
+| --- | --- |
+| GitHub 仓库 ahao430/CaptureKit（public）+ main 推送 | Done |
+| CI build.yml（Build + 159 测试，macos-26） | ✅ success |
+| GitHub Pages（main /docs → ahao430.github.io/CaptureKit） | ✅ HTTP 200 |
+| Sparkle Secret（SPARKLE_PRIVATE_KEY） | ✅ 已配置 |
+| release.yml @ v0.1.0（DMG 3.9M + zip 3.5M + appcast.xml 三附件） | ✅ success |
+| 稳定直链 releases/latest/download/CaptureKit.dmg | ✅ HTTP 200 |
+| 远端 appcast EdDSA 验签（下载 zip ↔ appcast 签名比对） | ✅ VALID |
+
+线上实证修复（都是本地无法暴露的 CI 行为）：
+1. app-only scheme 无 test action → 拆双 scheme（CaptureKit 构建 / CaptureKitTests 测试）。
+2. generate_appcast 在 cd 后按 CWD 重解析相对目录 → make-appcast.sh 内转绝对路径。
+3. 本机 xcodebuild「scheme 含测试 target 即挂死」仅限本机（Xcode 26.6/macOS 27.2），CI 正常——双 scheme 保留为本地规避。
+
+剩余人工项（docs/releasing.md §3）：真实下载 DMG → xattr → 启动验收；更高版本号发的更新回路（v0.1.1+）验证 Sparkle 全流程；Intel/Rosetta 抽查。
