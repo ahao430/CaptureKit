@@ -343,7 +343,7 @@ final class CaptureOverlayView: NSView {
             if model.selection != nil {
                 delegate?.overlayRequestsConfirm(action: .copy)
             }
-        case 8: // C → 复制放大镜中心颜色（悬停/拖拽取色）
+        case 8: // C / ⌘C → 复制放大镜中心颜色（当前格式，悬停/拖拽取色）
             if model.showsMagnifier, let point = model.currentDragPoint {
                 delegate?.overlayDidRequestCopyColor(at: point)
             }
@@ -357,22 +357,26 @@ final class CaptureOverlayView: NSView {
                 model.selection = ScreenGeometry.movedRect(selection, dx: dx, dy: dy)
                 delegate?.overlaySelectionDidChange()
             }
-        case 53: // ESC 阶梯：草稿 → 选中标注 → 选区 → 取消整个 Overlay
-            if model.draftAnnotation != nil {
-                model.draftAnnotation = nil
-                model.annotateDragStart = nil
-                delegate?.overlaySelectionDidChange()
-            } else if model.selectedAnnotationID != nil {
-                model.selectedAnnotationID = nil
-                model.annotationDrag = nil
-                delegate?.overlaySelectionDidChange()
-            } else {
-                delegate?.overlayRequestsCancel()
-            }
+        case 53: // ESC → 直接取消截图（钉钉行为）
+            delegate?.overlayRequestsCancel()
         default:
             super.keyDown(with: event)
         }
     }
+
+    override func flagsChanged(with event: NSEvent) {
+        // Shift 按下瞬间 → 切换取色值格式（HEX/RGB，钉钉行为）
+        let shiftNow = event.modifierFlags.contains(.shift)
+        if shiftNow && !wasShiftDown {
+            model.colorFormat = model.colorFormat == .hex ? .rgb : .hex
+            delegate?.overlaySelectionDidChange()
+        }
+        wasShiftDown = shiftNow
+        super.flagsChanged(with: event)
+    }
+
+    /// 上一次 flagsChanged 时 Shift 是否按下（边沿检测）
+    private var wasShiftDown = false
 
     override func keyUp(with event: NSEvent) {
         if event.keyCode == 49 {
@@ -771,54 +775,99 @@ final class CaptureOverlayView: NSView {
         context.draw(cropped, in: target)
         context.restoreGState()
 
-        // 中心十字线
-        let center = CGPoint(x: target.midX, y: target.midY)
-        context.setStrokeColor(NSColor.systemRed.withAlphaComponent(0.9).cgColor)
-        context.setLineWidth(1)
+        // 像素网格（每个源像素一格，坐标纸质感）
+        let cellWidth = target.width / magnifierSourceSize.width
+        let cellHeight = target.height / magnifierSourceSize.height
+        context.setStrokeColor(NSColor.black.withAlphaComponent(0.28).cgColor)
+        context.setLineWidth(0.5)
         context.beginPath()
-        context.move(to: CGPoint(x: center.x - 8, y: center.y))
-        context.addLine(to: CGPoint(x: center.x + 8, y: center.y))
-        context.move(to: CGPoint(x: center.x, y: center.y - 8))
-        context.addLine(to: CGPoint(x: center.x, y: center.y + 8))
+        var gridX = target.minX + cellWidth
+        while gridX < target.maxX {
+            context.move(to: CGPoint(x: gridX, y: target.minY))
+            context.addLine(to: CGPoint(x: gridX, y: target.maxY))
+            gridX += cellWidth
+        }
+        var gridY = target.minY + cellHeight
+        while gridY < target.maxY {
+            context.move(to: CGPoint(x: target.minX, y: gridY))
+            context.addLine(to: CGPoint(x: target.maxX, y: gridY))
+            gridY += cellHeight
+        }
         context.strokePath()
 
-        // 外框 + 坐标/颜色
+        // 蓝色十字线（贯穿全面板）+ 中心白色空心取色框（钉钉式）
+        let center = CGPoint(x: target.midX, y: target.midY)
+        context.setStrokeColor(NSColor.systemBlue.withAlphaComponent(0.95).cgColor)
+        context.setLineWidth(1.5)
+        context.beginPath()
+        context.move(to: CGPoint(x: center.x, y: target.minY))
+        context.addLine(to: CGPoint(x: center.x, y: target.maxY))
+        context.move(to: CGPoint(x: target.minX, y: center.y))
+        context.addLine(to: CGPoint(x: target.maxX, y: center.y))
+        context.strokePath()
+        let markerBox = CGRect(x: center.x - 4, y: center.y - 4, width: 8, height: 8)
+        context.setStrokeColor(NSColor.white.cgColor)
+        context.setLineWidth(1.5)
+        context.stroke(markerBox)
+
+        // 外框
         context.setStrokeColor(NSColor.white.withAlphaComponent(0.9).cgColor)
         context.setLineWidth(1.5)
         context.stroke(target)
 
+        // 信息区（放大镜下方三行：坐标 / 色板+当前格式色值 / 操作提示）
         let color = PixelColorReader.color(at: global, snapshots: model.snapshots)
-        let coordText = "\(Int(global.x.rounded())), \(Int(global.y.rounded()))"
-        let infoText = color.map { "\(coordText)  \($0.hex)" } ?? coordText
-        let attributes: [NSAttributedString.Key: Any] = [
+        let coordText = "坐标：\(Int(global.x.rounded())), \(Int(global.y.rounded()))"
+        let valueText = color.map {
+            model.colorFormat == .hex ? $0.hex : $0.rgbText
+        } ?? "-"
+        let hintText = "⌘C 复制颜色值 · Shift 切换 RGB/HEX"
+
+        let titleAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.9),
+        ]
+        let valueAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
             .foregroundColor: NSColor.white,
         ]
-        let textSize = (infoText as NSString).size(withAttributes: attributes)
-        // 色板占位（有颜色时在文本左侧绘制 10×10 色块）
-        let swatchWidth: CGFloat = color != nil ? 14 : 0
-        let badgeWidth = textSize.width + 10 + swatchWidth
-        let badgeHeight = textSize.height + 4
-        let badgeOrigin = CGPoint(
-            x: target.midX - badgeWidth / 2,
-            y: target.minY - badgeHeight - 6
-        )
-        if badgeOrigin.y >= 0 {
-            let badgeRect = CGRect(origin: badgeOrigin, size: CGSize(width: badgeWidth, height: badgeHeight))
-            context.setFillColor(NSColor.black.withAlphaComponent(0.72).cgColor)
-            context.fill(badgeRect)
+        let hintAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 9, weight: .regular),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.62),
+        ]
+
+        let coordSize = (coordText as NSString).size(withAttributes: titleAttributes)
+        let valueSize = (valueText as NSString).size(withAttributes: valueAttributes)
+        let hintSize = (hintText as NSString).size(withAttributes: hintAttributes)
+        let swatchWidth: CGFloat = 16
+        let lineGap: CGFloat = 3
+        let infoPadding: CGFloat = 8
+        let infoWidth = max(coordSize.width, swatchWidth + 4 + valueSize.width, hintSize.width) + infoPadding * 2
+        let infoHeight = coordSize.height + valueSize.height + hintSize.height + lineGap * 2 + infoPadding * 2 - 2
+        let infoOrigin = CGPoint(x: target.minX, y: target.minY - infoHeight - 6)
+        if infoOrigin.y >= 0 {
+            let infoRect = CGRect(origin: infoOrigin, size: CGSize(width: infoWidth, height: infoHeight))
+            let path = CGPath(roundedRect: infoRect, cornerWidth: 6, cornerHeight: 6, transform: nil)
+            context.setFillColor(NSColor.black.withAlphaComponent(0.78).cgColor)
+            context.addPath(path)
+            context.fillPath()
+
+            var lineY = infoRect.maxY - infoPadding - coordSize.height
+            (coordText as NSString).draw(at: CGPoint(x: infoRect.minX + infoPadding, y: lineY), withAttributes: titleAttributes)
+            lineY -= valueSize.height + lineGap
             if let color {
-                let swatchRect = CGRect(x: badgeRect.minX + 4, y: badgeRect.midY - 5, width: 10, height: 10)
+                let swatchRect = CGRect(x: infoRect.minX + infoPadding, y: lineY, width: 12, height: 12)
                 context.setFillColor(CGColor(red: CGFloat(color.red) / 255, green: CGFloat(color.green) / 255, blue: CGFloat(color.blue) / 255, alpha: 1))
                 context.fill(swatchRect)
                 context.setStrokeColor(NSColor.white.withAlphaComponent(0.8).cgColor)
                 context.setLineWidth(0.8)
                 context.stroke(swatchRect)
+                (valueText as NSString).draw(at: CGPoint(x: swatchRect.maxX + 4, y: lineY - 1), withAttributes: valueAttributes)
+            } else {
+                (valueText as NSString).draw(at: CGPoint(x: infoRect.minX + infoPadding, y: lineY), withAttributes: valueAttributes)
             }
-            (infoText as NSString).draw(
-                at: CGPoint(x: badgeRect.minX + swatchWidth + 5, y: badgeRect.minY + 2),
-                withAttributes: attributes
-            )
+            lineY -= hintSize.height + lineGap
+            (hintText as NSString).draw(at: CGPoint(x: infoRect.minX + infoPadding, y: lineY), withAttributes: hintAttributes)
         }
 
         // 取色复制反馈（"已复制 #RRGGBB"）

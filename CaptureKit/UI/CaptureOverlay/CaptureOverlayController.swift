@@ -256,12 +256,8 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
     }
 
     func overlayRequestsCancel() {
-        // 已有选区 → 清除（回到选择状态）；无选区 → 取消整个 Overlay
-        if model.selection != nil {
-            clearSelection()
-        } else {
-            finish(.cancelled)
-        }
+        // ESC 直接取消截图（钉钉行为；回到选择态走右键菜单「重选」）
+        finish(.cancelled)
     }
 
     func overlayDidDoubleClick(at globalPoint: CGPoint) {
@@ -355,8 +351,10 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
 
     func overlayDidRequestCopyColor(at globalPoint: CGPoint) {
         guard let color = PixelColorReader.color(at: globalPoint, snapshots: model.snapshots) else { return }
-        ClipboardWriter.copyText(color.hex)
-        model.colorCopyFeedback = "已复制 \(color.hex)"
+        // 按当前格式复制（Shift 切换 HEX/RGB）
+        let value = model.colorFormat == .hex ? color.hex : color.rgbText
+        ClipboardWriter.copyText(value)
+        model.colorCopyFeedback = "已复制 \(value)"
         overlaySelectionDidChange()
 
         colorFeedbackTask?.cancel()

@@ -58,6 +58,14 @@ final class OverlaySelectionModel {
     /// 取色复制反馈（"已复制 #RRGGBB"），短暂显示后由控制器清除
     var colorCopyFeedback: String?
 
+    /// 取色值显示/复制格式（放大镜内 Shift 切换）
+    enum ColorValueFormat: Equatable {
+        case hex
+        case rgb
+    }
+
+    var colorFormat: ColorValueFormat = .hex
+
     // MARK: 选区内直接标注（一体化工具栏，DingTalk 式）
 
     /// 捕获意图（顶部模式胶囊选择；截图 = 标注工具栏流程）
