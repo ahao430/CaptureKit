@@ -382,3 +382,7 @@ Phase 5 批次 2 已完成：QuickAccessPanel（⌘⇧V：搜索/键盘导航/En
 ## 排查结案：屏幕录制授权反复提示（DESIGN.md §23 / ADR-030）
 
 排查清单逐项结论：权限检查无缓存、每次实时 preflight；CGRequest 仅在未授权时调用；Bundle ID 全构建一致；**根因为 ad-hoc 签名的 DR 绑定单次构建 cdhash**（`codesign -d -r-` 对比实验，v0.1.2 实包验证）；权限生效需重启应用。修复：v0.1.4 固定证书（已发布并核对 Authority）+ 权限提示文案（面板新名称「屏幕与系统音频录制」+ 重启生效说明）。用户侧操作：`tccutil reset ScreenCapture com.wanghao.capturekit` → 装 v0.1.4 → 授权 → 重启。
+
+## 授权修复用户验证通过（2026-11-23）
+
+v0.1.4 实机结果：授权成功后不再重复弹出——根因（ad-hoc DR 逐构建变化）与修复（固定自签名证书 + 一次性 tccutil reset）均证实。此前的 Translocation 假设（v0.1.1）与「每版本重新授权一次」的口径均为误判，已在 ADR-030 修正。后续发布按 DESIGN.md §23.3 验收（重点：新版本覆盖安装后授权保留）。

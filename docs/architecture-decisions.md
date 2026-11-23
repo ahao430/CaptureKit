@@ -220,4 +220,4 @@
   - `security add-trusted-cert -r trustRoot` 在 GitHub 的 macOS runner 上**挂起**（步骤卡住 20 分钟后取消），不能用于 CI。
   - 本地实证：撤销信任后 `find-identity -v` 为 0，但 `codesign --sign "CaptureKit Developer"` 成功且 `--verify --deep --strict` 通过——签名不要求证书受信任。故 CI 不做信任设置，身份检测改用不带 `-v` 的 `find-identity`。
   - 防回归：`MACOS_SIGNING_REQUIRED=1`（发布必开）时找不到身份直接失败；签名后核对 `Authority`，不一致即终止。
-  - **「自签名证书能让 TCC 授权跨版本保留」仍是假设**，截至 v0.1.4 发版未经实机验证；根因推断（ad-hoc 指纹变化导致授权留不住）同样未经直接证实——v0.1.1 时提出的 Translocation 解释已被否定（应用一直从 /Applications 运行）。
+  - **结果（2026-11-23 用户实测 v0.1.4）**：授权后重启不再重复弹窗——「ad-hoc DR 绑定单次构建 cdhash 导致授权留不住」的根因推断与「固定自签名证书可保留授权」的修复均获证实（配合一次性 `tccutil reset` 重建记录）。DESIGN.md §23.3 已纳入发布验收。
