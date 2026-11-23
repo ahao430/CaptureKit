@@ -12,6 +12,12 @@ protocol CaptureOverlayViewDelegate: AnyObject {
     func overlayRequestsCancel()
     /// 用户双击（窗口捕获）
     func overlayDidDoubleClick(at globalPoint: CGPoint)
+    /// 用户按 C 复制放大镜中心颜色
+    func overlayDidRequestCopyColor(at globalPoint: CGPoint)
+    /// 用户在选区内右键（上下文菜单）
+    func overlayRequestsContextMenu(at globalPoint: CGPoint)
+    /// 标注模式下点击文字工具落点（弹出文字输入）
+    func overlayRequestsTextAnnotation(at globalPoint: CGPoint)
 }
 
 @MainActor
@@ -72,28 +78,34 @@ final class CaptureOverlayView: NSView {
                 context.setLineWidth(1.5)
                 context.stroke(local)
             }
+
+            // 3.5 标注模式：选区内直接绘制标注（已提交 + 草稿），复用统一渲染管线
+            if model.annotateMode {
+                drawAnnotations(context, selection: selection)
+            }
         }
 
-        // 4. 拖拽创建中：十字准星 + 跟随放大镜
+        // 4. 拖拽创建中：十字准线
         if case .creating = model.interaction, let current = model.currentDragPoint {
             drawCrosshair(context, at: current)
-            drawMagnifier(context, at: current)
         }
 
-        // 5. resize 中：跟随放大镜
-        if case .resizing = model.interaction, let current = model.currentDragPoint {
-            drawMagnifier(context, at: current)
+        // 5. 跟随放大镜（创建/调整/移动中 + 无选区悬停取色；只在本屏鼠标附近绘制）
+        if model.showsMagnifier, let current = model.currentDragPoint {
+            if screenFrame.insetBy(dx: -magnifierSize.width, dy: -magnifierSize.height).contains(current) {
+                drawMagnifier(context, at: current)
+            }
         }
 
-        // 6. 控制点（有选区且非创建交互时）
-        if let selection = model.selection {
+        // 6. 控制点（有选区且非创建交互时；标注模式下禁用调整）
+        if let selection = model.selection, !model.annotateMode {
             for handle in SelectionHandle.allCases {
                 drawHandle(context, handle: handle, on: selection)
             }
         }
 
-        // 7. 尺寸标签（仅选区中心所在屏绘制，避免多屏重复）
-        if let selection = model.selection, model.isInteracting || needsSizeLabel {
+        // 7. 尺寸标签（仅选区中心所在屏绘制；标注模式下不显示）
+        if let selection = model.selection, !model.annotateMode, model.isInteracting || needsSizeLabel {
             let center = CGPoint(x: selection.midX, y: selection.midY)
             if screenFrame.contains(center) {
                 drawSizeLabel(context, for: selection)
@@ -110,6 +122,12 @@ final class CaptureOverlayView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         let point = globalPoint(event)
+
+        // 标注模式：选区内绘制标注，选区外忽略（不新建/移动选区）
+        if model.annotateMode {
+            annotateMouseDown(at: point)
+            return
+        }
 
         // 双击检测 → 窗口捕获
         if let last = model.lastClick,
@@ -147,6 +165,13 @@ final class CaptureOverlayView: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         let raw = globalPoint(event)
+
+        // 标注草稿拖拽
+        if model.annotateMode, model.draftAnnotation != nil {
+            annotateDragged(to: raw)
+            return
+        }
+
         let point = snapped(raw)
         model.currentDragPoint = raw
         switch model.interaction {
@@ -170,6 +195,13 @@ final class CaptureOverlayView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         let point = globalPoint(event)
+
+        // 标注草稿提交
+        if model.annotateMode, model.draftAnnotation != nil {
+            commitAnnotateDraft()
+            return
+        }
+
         switch model.interaction {
         case .creating:
             if let s = model.selection, s.width >= 4, s.height >= 4 {
@@ -195,23 +227,53 @@ final class CaptureOverlayView: NSView {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        // 无选区且非交互时：窗口悬停高亮
+        // 无选区且非交互时：窗口悬停高亮 + 放大镜悬停取色
         guard model.selection == nil, !model.isInteracting else { return }
         let point = globalPoint(event)
         let newHover = smallestWindowFrame(containing: point)
-        if newHover != model.hoverWindowFrame {
-            model.hoverWindowFrame = newHover
+        let hoverChanged = newHover != model.hoverWindowFrame
+        let pointMoved = model.currentDragPoint != point
+        model.hoverWindowFrame = newHover
+        model.currentDragPoint = point
+        if hoverChanged || pointMoved {
+            delegate?.overlaySelectionDidChange()
+        }
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        let point = globalPoint(event)
+        // 选区内右键 → 上下文菜单；选区外右键 → 清除选区（标注模式下忽略，保护已画内容）
+        if model.selection?.insetBy(dx: -2, dy: -2).contains(point) == true {
+            delegate?.overlayRequestsContextMenu(at: point)
+        } else if model.selection != nil, !model.annotateMode {
+            model.selection = nil
+            model.hoverWindowFrame = nil
+            needsSizeLabel = false
             delegate?.overlaySelectionDidChange()
         }
     }
 
     override func keyDown(with event: NSEvent) {
+        // 标注模式：⌘Z 撤销上一条标注
+        if model.annotateMode, event.keyCode == 6, event.modifierFlags.contains(.command) {
+            if !model.annotations.isEmpty {
+                model.annotations.removeLast()
+                delegate?.overlaySelectionDidChange()
+            }
+            return
+        }
+
         switch event.keyCode {
-        case 36: // Return → 确认
+        case 36: // Return → 确认（标注模式下 = 完成并复制）
             if model.selection != nil {
                 delegate?.overlayRequestsConfirm(action: .copy)
             }
+        case 8: // C → 复制放大镜中心颜色（悬停/拖拽取色）
+            if model.showsMagnifier, let point = model.currentDragPoint {
+                delegate?.overlayDidRequestCopyColor(at: point)
+            }
         case 49: // Space → 标记（空格 + 拖动 = 移动选区）
+            if model.annotateMode { break }
             model.isSpacePressed = true
         case 123...126: // 方向键微调选区
             if let selection = model.selection, !model.isInteracting {
@@ -273,6 +335,125 @@ final class CaptureOverlayView: NSView {
             width: abs(a.x - b.x),
             height: abs(a.y - b.y)
         )
+    }
+
+    // MARK: - 选区内标注（批次 2）
+
+    /// 全局点 → 选区本地坐标（原点 = 选区左下角，y 向上，与标注模型一致）。
+    private func annotateLocal(_ global: CGPoint, selection: CGRect) -> CGPoint {
+        CGPoint(x: global.x - selection.minX, y: global.y - selection.minY)
+    }
+
+    private func annotateMouseDown(at globalPoint: CGPoint) {
+        guard let selection = model.selection,
+              selection.insetBy(dx: -2, dy: -2).contains(globalPoint) else { return }
+        let local = annotateLocal(globalPoint, selection: selection)
+        model.annotateDragStart = local
+
+        let tool = model.annotateTool
+        let style = model.annotateStyle
+        switch tool {
+        case .numberedMarker:
+            // 单击即放置：编号 = 已有编号最大值 + 1
+            let number = model.annotations.compactMap { annotation -> Int? in
+                if case .numberedMarker(_, let n) = annotation.geometry { return n }
+                return nil
+            }.max() ?? 0
+            model.annotations.append(Annotation(
+                type: .numberedMarker,
+                geometry: .numberedMarker(center: local, number: number + 1),
+                style: style
+            ))
+            delegate?.overlaySelectionDidChange()
+        case .text:
+            // 文字：点击处弹出输入浮层，提交后由控制器落标注
+            model.annotateDragStart = nil
+            delegate?.overlayRequestsTextAnnotation(at: globalPoint)
+        case .arrow:
+            model.draftAnnotation = Annotation(
+                type: .arrow,
+                geometry: .arrow(from: local, to: local),
+                style: style
+            )
+            delegate?.overlaySelectionDidChange()
+        case .brush:
+            model.draftAnnotation = Annotation(
+                type: .brush,
+                geometry: .brush(points: [local]),
+                style: style
+            )
+            delegate?.overlaySelectionDidChange()
+        case .rectangle, .ellipse, .mosaic, .blur:
+            model.draftAnnotation = Annotation(
+                type: tool,
+                geometry: .rect(CGRect(origin: local, size: .zero)),
+                style: style
+            )
+            delegate?.overlaySelectionDidChange()
+        }
+    }
+
+    private func annotateDragged(to globalPoint: CGPoint) {
+        guard let selection = model.selection,
+              let start = model.annotateDragStart,
+              var draft = model.draftAnnotation else { return }
+        let local = annotateLocal(globalPoint, selection: selection)
+
+        switch draft.geometry {
+        case .arrow(let from, _):
+            draft.geometry = .arrow(from: from, to: local)
+        case .brush(let points):
+            draft.geometry = .brush(points: points + [local])
+        case .rect:
+            draft.geometry = .rect(Self.rect(from: start, to: local))
+        case .ellipse:
+            draft.geometry = .ellipse(inRect: Self.rect(from: start, to: local))
+        case .mosaic:
+            draft.geometry = .mosaic(Self.rect(from: start, to: local))
+        case .blur:
+            draft.geometry = .blur(Self.rect(from: start, to: local))
+        case .text, .numberedMarker:
+            break
+        }
+        model.draftAnnotation = draft
+        delegate?.overlaySelectionDidChange()
+    }
+
+    /// 提交草稿（过小的形状丢弃）。
+    private func commitAnnotateDraft() {
+        defer {
+            model.draftAnnotation = nil
+            model.annotateDragStart = nil
+            delegate?.overlaySelectionDidChange()
+        }
+        guard let draft = model.draftAnnotation else { return }
+        let box = draft.boundingBox()
+        switch draft.type {
+        case .arrow:
+            if box.width < 4 && box.height < 4 { return }
+        case .rectangle, .ellipse, .mosaic, .blur:
+            if box.width < 3 || box.height < 3 { return }
+        case .brush, .text, .numberedMarker:
+            break
+        }
+        model.annotations.append(draft)
+    }
+
+    /// 绘制标注（已提交 + 草稿）：CTM 平移到选区本地坐标系，复用统一渲染管线。
+    private func drawAnnotations(_ context: CGContext, selection: CGRect) {
+        guard selection.intersects(screenFrame) else { return }
+        // 马赛克/模糊预览数据源：选区内容像素快照（控制器在进入标注模式时准备）
+        var all = model.annotations
+        if let draft = model.draftAnnotation { all.append(draft) }
+        guard !all.isEmpty else { return }
+
+        context.saveGState()
+        context.translateBy(
+            x: selection.minX - screenFrame.minX,
+            y: selection.minY - screenFrame.minY
+        )
+        AnnotationRenderer.draw(all, baseImage: model.selectionBaseImage, in: context)
+        context.restoreGState()
     }
 
     // MARK: - 绘制细节
@@ -421,27 +602,61 @@ final class CaptureOverlayView: NSView {
         context.addLine(to: CGPoint(x: center.x, y: center.y + 8))
         context.strokePath()
 
-        // 外框 + 坐标
+        // 外框 + 坐标/颜色
         context.setStrokeColor(NSColor.white.withAlphaComponent(0.9).cgColor)
         context.setLineWidth(1.5)
         context.stroke(target)
 
+        let color = PixelColorReader.color(at: global, snapshots: model.snapshots)
         let coordText = "\(Int(global.x.rounded())), \(Int(global.y.rounded()))"
+        let infoText = color.map { "\(coordText)  \($0.hex)" } ?? coordText
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular),
             .foregroundColor: NSColor.white,
         ]
-        let textSize = (coordText as NSString).size(withAttributes: attributes)
-        let textRect = CGRect(
-            x: target.midX - textSize.width / 2 - 5,
-            y: target.minY - textSize.height - 6,
-            width: textSize.width + 10,
-            height: textSize.height + 4
+        let textSize = (infoText as NSString).size(withAttributes: attributes)
+        // 色板占位（有颜色时在文本左侧绘制 10×10 色块）
+        let swatchWidth: CGFloat = color != nil ? 14 : 0
+        let badgeWidth = textSize.width + 10 + swatchWidth
+        let badgeHeight = textSize.height + 4
+        let badgeOrigin = CGPoint(
+            x: target.midX - badgeWidth / 2,
+            y: target.minY - badgeHeight - 6
         )
-        if textRect.minY >= 0 {
+        if badgeOrigin.y >= 0 {
+            let badgeRect = CGRect(origin: badgeOrigin, size: CGSize(width: badgeWidth, height: badgeHeight))
             context.setFillColor(NSColor.black.withAlphaComponent(0.72).cgColor)
-            context.fill(textRect)
-            (coordText as NSString).draw(at: CGPoint(x: textRect.minX + 5, y: textRect.minY + 2), withAttributes: attributes)
+            context.fill(badgeRect)
+            if let color {
+                let swatchRect = CGRect(x: badgeRect.minX + 4, y: badgeRect.midY - 5, width: 10, height: 10)
+                context.setFillColor(CGColor(red: CGFloat(color.red) / 255, green: CGFloat(color.green) / 255, blue: CGFloat(color.blue) / 255, alpha: 1))
+                context.fill(swatchRect)
+                context.setStrokeColor(NSColor.white.withAlphaComponent(0.8).cgColor)
+                context.setLineWidth(0.8)
+                context.stroke(swatchRect)
+            }
+            (infoText as NSString).draw(
+                at: CGPoint(x: badgeRect.minX + swatchWidth + 5, y: badgeRect.minY + 2),
+                withAttributes: attributes
+            )
+        }
+
+        // 取色复制反馈（"已复制 #RRGGBB"）
+        if let feedback = model.colorCopyFeedback {
+            let feedbackAttributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium),
+                .foregroundColor: NSColor.white,
+            ]
+            let feedbackSize = (feedback as NSString).size(withAttributes: feedbackAttributes)
+            let feedbackRect = CGRect(
+                x: target.midX - feedbackSize.width / 2 - 5,
+                y: target.maxY + 6,
+                width: feedbackSize.width + 10,
+                height: feedbackSize.height + 4
+            )
+            context.setFillColor(NSColor.black.withAlphaComponent(0.72).cgColor)
+            context.fill(feedbackRect)
+            (feedback as NSString).draw(at: CGPoint(x: feedbackRect.minX + 5, y: feedbackRect.minY + 2), withAttributes: feedbackAttributes)
         }
     }
 }

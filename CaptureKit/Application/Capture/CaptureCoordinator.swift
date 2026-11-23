@@ -19,6 +19,12 @@ final class CaptureCoordinator {
     var onEditImage: ((CGImage) -> Void)?
     /// 历史记录入口（截图写入统一历史）
     var onRecordScreenshot: ((CGImage) -> Void)?
+    /// 选区直录入口（工具栏/右键菜单 → RecordingCoordinator）
+    var onRecordRegion: ((CGRect, RecordingMode) -> Void)?
+    /// 选区长截图入口（工具栏/右键菜单 → ScrollCoordinator）
+    var onScrollRegion: ((CGRect) -> Void)?
+    /// 选区贴图入口（工具栏/右键菜单 → PinnedImageManager）
+    var onPinImage: ((CGImage, CGRect) -> Void)?
 
     private var isCapturing = false
     private var countdownPanel: DelayedCapturePanel?
@@ -159,6 +165,96 @@ final class CaptureCoordinator {
                     }
                     let output = try await self.engine.captureWindow(window)
                     self.deliver(output: output, action: .copy, anchorRect: window.frame)
+                } catch {
+                    self.report(error)
+                }
+            }
+
+        case .recognizeRegion(let rect):
+            // 选区 OCR：捕获 → Vision 识别 → 结果复制剪贴板 → toast 反馈
+            guard !isCapturing else { return }
+            isCapturing = true
+            Task { [weak self] in
+                defer { self?.isCapturing = false }
+                guard let self else { return }
+                do {
+                    let content = try await self.engine.shareableContent()
+                    let output = try await self.engine.captureRegion(
+                        rect,
+                        content: content,
+                        excludeOwnWindows: self.settings.settings.capture.excludeOwnWindows
+                    )
+                    self.onRecordScreenshot?(output.image)
+                    let text = try await OCRService.recognizeText(in: output.image)
+                    if text.isEmpty {
+                        CaptureResultToast.show(image: output.image, message: "未识别到文字", anchorRect: rect)
+                    } else {
+                        ClipboardWriter.copyText(text)
+                        CaptureResultToast.show(image: output.image, message: "已复制识别文字", anchorRect: rect)
+                    }
+                } catch {
+                    self.report(error)
+                }
+            }
+
+        case .regionAnnotated(let rect, let annotations):
+            // 选区内直接标注：捕获 → 标注缩放到像素坐标 → 统一管线合成 → 复制
+            guard !isCapturing else { return }
+            isCapturing = true
+            Task { [weak self] in
+                defer { self?.isCapturing = false }
+                guard let self else { return }
+                do {
+                    let content = try await self.engine.shareableContent()
+                    let output = try await self.engine.captureRegion(
+                        rect,
+                        content: content,
+                        excludeOwnWindows: self.settings.settings.capture.excludeOwnWindows
+                    )
+                    let scaled = OverlayAnnotationExporter.scale(
+                        annotations: annotations,
+                        selectionSize: rect.size,
+                        imageSize: CGSize(width: output.image.width, height: output.image.height)
+                    )
+                    if let composite = AnnotationRenderer.compose(baseImage: output.image, annotations: scaled) {
+                        self.onRecordScreenshot?(composite)
+                        do {
+                            try ClipboardWriter.copy(composite)
+                            CaptureResultToast.show(image: composite, message: "已复制（含标注）", anchorRect: rect)
+                        } catch {
+                            self.report(error)
+                        }
+                    } else {
+                        // 合成失败兜底：按普通复制交付原始截图
+                        self.deliver(output: output, action: .copy, anchorRect: rect)
+                    }
+                } catch {
+                    self.report(error)
+                }
+            }
+
+        case .recordRegion(let rect, let mode):
+            onRecordRegion?(rect, mode)
+
+        case .scrollRegion(let rect):
+            onScrollRegion?(rect)
+
+        case .pinRegion(let rect):
+            // 贴图：捕获选区 → 钉在原位的置顶浮窗（截图同时入历史）
+            guard !isCapturing else { return }
+            isCapturing = true
+            Task { [weak self] in
+                defer { self?.isCapturing = false }
+                guard let self else { return }
+                do {
+                    let content = try await self.engine.shareableContent()
+                    let output = try await self.engine.captureRegion(
+                        rect,
+                        content: content,
+                        excludeOwnWindows: self.settings.settings.capture.excludeOwnWindows
+                    )
+                    self.onRecordScreenshot?(output.image)
+                    self.onPinImage?(output.image, rect)
                 } catch {
                     self.report(error)
                 }

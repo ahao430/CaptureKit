@@ -386,3 +386,17 @@ Phase 5 批次 2 已完成：QuickAccessPanel（⌘⇧V：搜索/键盘导航/En
 ## 授权修复用户验证通过（2026-11-23）
 
 v0.1.4 实机结果：授权成功后不再重复弹出——根因（ad-hoc DR 逐构建变化）与修复（固定自签名证书 + 一次性 tccutil reset）均证实。此前的 Translocation 假设（v0.1.1）与「每版本重新授权一次」的口径均为误判，已在 ADR-030 修正。后续发布按 DESIGN.md §23.3 验收（重点：新版本覆盖安装后授权保留）。
+
+## 截图交互升级：参考钉钉三批次（2026-11-23）
+
+用户反馈钉钉截图体验好，按「小改动 → 选区标注 → 贴图」三批次落地（189 测试通过，新增 22 个）：
+
+| 批次 | 内容 | 关键实现 |
+| --- | --- | --- |
+| 1 | 取色放大镜：坐标 + HEX/RGB + `C` 复制颜色；无选区悬停也显示 | `PixelColorReader`（快照 1×1 采样，`ScreenGeometry` 统一坐标）；工具栏图标化 + OCR/录屏/长截图入口；选区右键菜单 |
+| 2 | 选区内直接标注（矩形/椭圆/箭头/画笔/马赛克/编号/文字 + 8 色 + ⌘Z 撤销），Enter 复制含标注截图，不打开编辑器 | 复用 `Annotation`/`AnnotationRenderer` 统一渲染管线；标注存选区本地逻辑坐标，导出经 `OverlayAnnotationExporter` 缩放到像素坐标合成；文字用 `OverlayTextEntryPanel` 浮层输入 |
+| 3 | 贴图：选区钉在原位置顶浮窗 | `PinnedImageManager`（上限 12 张）+ `PinnedImagePanelController`；拖动/滚轮缩放/⌥滚轮透明度/双击还原/悬停关闭/右键复制关闭 |
+
+新增 Overlay Result 分支：`regionAnnotated` / `recognizeRegion` / `recordRegion` / `scrollRegion` / `pinRegion`；`RecordingCoordinator.startRecordingInRegion`、`ScrollCoordinator.startCapturing(in:)` 提供选区直入口（AppEnvironment 装配）。
+
+测试夹具坑（记录）：`CGColor(red:...)` 构造的是扩展 sRGB 色，绘制进 DeviceRGB 位图上下文会色彩转换偏色（实测红变 255,38,0）——测试需用分量式 `setFillColor(red:green:blue:alpha:)`。

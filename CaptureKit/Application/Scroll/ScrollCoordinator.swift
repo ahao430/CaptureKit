@@ -78,9 +78,19 @@ final class ScrollCoordinator {
         switch result {
         case .region(let rect, _):
             beginCapturing(in: rect)
-        case .windowAt, .cancelled:
+        case .windowAt, .regionAnnotated, .recognizeRegion, .recordRegion, .scrollRegion, .pinRegion, .cancelled:
             state = .cancelled
         }
+    }
+
+    /// 在已选区域上直接开始滚动采集（截图 Overlay 工具栏 / 右键菜单入口）。
+    func startCapturing(in rect: CGRect) {
+        guard state == .idle || state == .completed || state == .cancelled || state == .failed(nil) else {
+            Log.capture.warning("Scroll capture already active, ignore request from capture overlay")
+            return
+        }
+        guard ensurePermission() else { return }
+        beginCapturing(in: rect)
     }
 
     // MARK: - 采集

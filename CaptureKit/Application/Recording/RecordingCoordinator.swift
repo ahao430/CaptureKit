@@ -94,6 +94,16 @@ final class RecordingCoordinator {
         overlay.present(mode: .recordWindow)
     }
 
+    /// 在已选区域上直接开始录制（截图 Overlay 工具栏 / 右键菜单入口）。
+    func startRecordingInRegion(_ rect: CGRect, mode: RecordingMode) {
+        guard ensurePermission() else { return }
+        guard session?.state != .recording, session?.state != .paused else {
+            Log.recording.warning("Recording already active, ignore region-record request from capture overlay")
+            return
+        }
+        beginRecording(regionRect: rect, mode: mode)
+    }
+
     // MARK: - 控制
 
     func togglePause() {
@@ -169,7 +179,8 @@ final class RecordingCoordinator {
                     self.errorHandler?((error as? CaptureKitError) ?? .captureFailed(underlying: error))
                 }
             }
-        case .cancelled:
+        case .regionAnnotated, .recognizeRegion, .recordRegion, .scrollRegion, .pinRegion, .cancelled:
+            // 这些入口只属于截图 Overlay，录制 Overlay 不会产生
             break
         }
     }

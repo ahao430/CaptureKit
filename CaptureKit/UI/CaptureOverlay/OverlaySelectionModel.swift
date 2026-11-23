@@ -47,8 +47,29 @@ final class OverlaySelectionModel {
     /// 可交互窗口 frame 列表（悬停检测 / 单击选中 / 边缘吸附）
     var windowFrames: [CGRect] = []
 
-    /// 当前交互中的全局鼠标点（十字线与放大镜跟随）
+    /// 选区内容像素快照（标注模式马赛克/模糊实时预览的数据源；选区变化时失效）
+    var selectionBaseImage: CGImage?
+
+    /// 当前交互/悬停中的全局鼠标点（十字线与放大镜跟随）
     var currentDragPoint: CGPoint?
+
+    /// 取色复制反馈（"已复制 #RRGGBB"），短暂显示后由控制器清除
+    var colorCopyFeedback: String?
+
+    // MARK: 选区内直接标注（DingTalk 式，批次 2）
+
+    /// 标注模式：选区内直接绘制，不打开编辑器
+    var annotateMode = false
+    /// 当前标注工具
+    var annotateTool: AnnotationType = .arrow
+    /// 当前标注样式（新标注使用）
+    var annotateStyle: AnnotationStyle = .default
+    /// 已提交的标注（选区本地坐标：原点 = 选区左下角，y 向上）
+    var annotations: [Annotation] = []
+    /// 拖拽中的草稿标注（提交前实时预览）
+    var draftAnnotation: Annotation?
+    /// 草稿拖拽起点（选区本地坐标）
+    var annotateDragStart: CGPoint?
 
     var hasSelection: Bool { selection != nil }
 
@@ -57,10 +78,17 @@ final class OverlaySelectionModel {
         return true
     }
 
-    /// 是否应显示放大镜（创建/调整中且快照可用）。
+    /// 正在绘制标注草稿（工具栏需要避让）
+    var isAnnotateDrafting: Bool { draftAnnotation != nil }
+
+    /// 是否应显示放大镜：
+    /// - 创建/调整/移动中（拖拽取色对齐边缘）
+    /// - 无选区悬停时（DingTalk 式悬停取色）
+    /// 均要求鼠标点与快照可用；标注模式下不显示。
     var showsMagnifier: Bool {
-        guard isInteracting, currentDragPoint != nil, !snapshots.isEmpty else { return false }
-        return true
+        guard !annotateMode, currentDragPoint != nil, !snapshots.isEmpty else { return false }
+        if isInteracting { return true }
+        return selection == nil
     }
 
     /// 供命中的窗口列表（过滤掉无效 frame）。

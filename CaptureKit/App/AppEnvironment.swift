@@ -307,6 +307,15 @@ final class AppEnvironment {
             guard let self, let historyService = self.historyService else { return }
             Task { await historyService.recordScreenshot(image: image) }
         }
+        captureCoordinator.onRecordRegion = { [weak self] rect, mode in
+            self?.recordingCoordinator.startRecordingInRegion(rect, mode: mode)
+        }
+        captureCoordinator.onScrollRegion = { [weak self] rect in
+            self?.scrollCoordinator.startCapturing(in: rect)
+        }
+        captureCoordinator.onPinImage = { image, rect in
+            PinnedImageManager.shared.show(image: image, at: rect)
+        }
         recordingCoordinator.errorHandler = { [weak self] error in
             self?.presentError(error)
         }

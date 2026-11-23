@@ -36,6 +36,15 @@ enum ClipboardWriter {
         return output as Data
     }
 
+    /// 写入纯文本（OCR 结果 / 取色值）。
+    /// 文本写入不会失败到需要错误处理的程度，失败由系统剪贴板自身处理。
+    static func copyText(_ string: String, to pasteboard: NSPasteboard = .general) {
+        guard !string.isEmpty else { return }
+        pasteboard.clearContents()
+        pasteboard.setString(string, forType: .string)
+        Log.clipboard.info("Text copied to clipboard (\(string.count) chars)")
+    }
+
     private static func tiffData(from image: CGImage) -> Data? {
         NSBitmapImageRep(cgImage: image).representation(using: .tiff, properties: [:])
     }
