@@ -38,20 +38,20 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
           echo "$MACOS_SIGNING_P12_B64" | base64 --decode > signing.p12
           security import signing.p12 -k "$KEYCHAIN" -P "$MACOS_SIGNING_P12_PASSWORD" -T /usr/bin/codesign
-          # 自签名证书在全新 runner 上不被信任（find-identity -v 为 0）→ 用户域信任（无需 sudo）
-          openssl pkcs12 -in signing.p12 -nokeys -clcerts -passin "pass:$MACOS_SIGNING_P12_PASSWORD" -out signing-cert.pem
-          security add-trusted-cert -r trustRoot -k "$KEYCHAIN" signing-cert.pem
-          # 硬校验：身份无效则失败，禁止静默回退 ad-hoc
-          security find-identity -v -p codesigning "$KEYCHAIN" | grep -q "CaptureKit Developer" || {
-            echo "错误：签名身份导入/信任失败"; exit 1;
-          }
           security set-key-partition-list -S apple-tool:,codesign: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN" >/dev/null
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr '\n' ' ')
-          rm signing.p12 signing-cert.pem
+          # 自签名证书在全新 runner 上不受信任。不要 add-trusted-cert（实测在 runner 上挂起），
+          # 也不要用 find-identity -v 校验（会得到 0 个有效身份）。
+          # codesign 按名称签名不要求信任链；真正的把关是 build-release.sh 签名后的 Authority 校验。
+          security find-identity -p codesigning "$KEYCHAIN" | tee /dev/stderr | grep -q '"CaptureKit Developer"' || {
+            echo "错误：签名身份未导入"; exit 1;
+          }
+          rm signing.p12
 
       - name: Build release artifacts (universal DMG + update zip)
         env:
           MACOS_SIGNING_IDENTITY: CaptureKit Developer
+          MACOS_SIGNING_REQUIRED: "1"
         run: |
           brew install xcodegen
           scripts/build-release.sh "$VERSION" "${{ github.run_number }}"

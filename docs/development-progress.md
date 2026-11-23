@@ -361,4 +361,20 @@ Phase 5 批次 2 已完成：QuickAccessPanel（⌘⇧V：搜索/键盘导航/En
 
 修复：`HotkeyConflictChecker.externalConflictHint`（纯函数 + 6 例单测）+ `AppEnvironment.warnExternalHotkeyConflictIfNeeded`（启动检测钉钉/微信运行且区域截图为默认 ⇧⌘A 时一次性弹窗建议改键，可「不再提示」）。161 → 167 测试。
 
-待办：草稿 v0.1.3 的 TCC 授权保留性需用户装机实测（决定稳定签名方案去留）；主分支改动待随下一版本发布。
+
+
+## v0.1.4：签名流程修正 + 快捷键占用提示（2026-11-23）
+
+更正：草稿 v0.1.3 的安装包实际是 ad-hoc（CI 上证书不受信任、脚本回退），不能用于验证授权问题；v0.1.3 未公开。
+
+| 项 | 状态 | 依据 |
+| --- | --- | --- |
+| CI 证书导入：去掉 `add-trusted-cert`（runner 上挂起） | Done | 第一次重跑卡在该步骤 20 分钟后取消 |
+| 身份检测不要求受信任；发布模式 `MACOS_SIGNING_REQUIRED=1` 缺身份即失败；签名后核对 `Authority` | Done | 用现存 universal 产物跑真实脚本三条分支：证书签名成功 / 发布模式缺身份 exit 1 / 开发模式回退 ad-hoc |
+| Sparkle 对签名身份变化的处理 | 已读源码确认 | Sparkle 2.10.1 仅在 EdDSA 验签失败后才用 Developer ID 匹配兜底；我们的更新均有 EdDSA 签名 |
+| 文档改为如实表述（README / 主页 / releasing.md / ADR-030） | Done | 删除「授权自动保留」的断言 |
+| 快捷键占用提示随本版发布 | Done | 167 测试通过；弹窗本身未在屏幕上实际运行过 |
+
+本地未能完整预演 `build-release.sh`：这台机器的 xcodebuild 再次卡在 `CreateBuildDescription`（CI 上同一命令一直正常），所以改为跳过构建步骤、只对签名段做验证。CI 全流程以 v0.1.4 的发布运行为准，发版后需下载已发布的 DMG 核对 `Authority`。
+
+未经证实、需实机确认：自签名证书能否让屏幕录制授权保留下来；「ad-hoc 指纹变化导致授权留不住」这一根因推断。

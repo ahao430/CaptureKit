@@ -12,7 +12,7 @@
 - [ ] **GitHub 仓库**：创建 `github.com/ahao430/CaptureKit` 并推送（当前全部代码尚未提交入库）。
 - [x] **配置 Secret**（已完成，共 3 个）：
   - `SPARKLE_PRIVATE_KEY`：`cat ~/.config/capturekit/sparkle_ed25519_privkey.pem` 的完整内容（EdDSA appcast 签名）。
-  - `MACOS_SIGNING_P12_B64`：`base64 < ~/.config/capturekit/signing/capturekit-signing.p12`（自签名证书，TCC 授权跨版本保留，ADR-030）。
+  - `MACOS_SIGNING_P12_B64`：`base64 < ~/.config/capturekit/signing/capturekit-signing.p12`（自签名证书，目的是让 TCC 授权跨版本保留，ADR-030；效果待实机确认）。
   - `MACOS_SIGNING_P12_PASSWORD`：`cat ~/.config/capturekit/signing/p12-password.txt`。
   - **备份提醒**：Sparkle 私钥与签名 p12 是两份信任根，请异地备份 `~/.config/capturekit/` 整个目录。
 - [ ] **开启 GitHub Pages**：Settings → Pages → Source 选 `Deploy from a branch` → 分支 `main` / 目录 `/docs` → Save。
@@ -52,8 +52,8 @@ cat /tmp/appcast-dryrun/appcast.xml
 1. **CI**：push 后 build.yml 绿灯（Build + 全量测试在 macos-26 runner 上）。
 2. **Release**：打 tag 后三附件齐全；DMG 挂载 → 拖入 Applications → 启动（首次 `xattr` 解除隔离）。
 3. **双架构**：Intel 机或 `lipo -info` 复核（CI 日志有输出）。
-4. **Sparkle 更新回路**：装 v1 → 发 v2 → 菜单「检查更新…」→ 确认安装 → 自动重启为 v2。**证书稳定后（ADR-030），更新不再触发重新授权屏幕录制**。若更新后被 Gatekeeper 拦截，重跑 `xattr`。
-4b. **签名自检**：CI 日志搜 `codesign`，或下载 DMG 后 `codesign -dvv /Applications/CaptureKit.app` 应显示 `Authority=CaptureKit Developer`。
+4. **Sparkle 更新回路**：装 v1 → 发 v2 → 菜单「检查更新…」→ 确认安装 → 自动重启为 v2。**需要验证：v0.1.4+ 之间的更新是否不再触发重新授权屏幕录制**（ADR-030 的预期，尚未实机确认）。若更新后被 Gatekeeper 拦截，重跑 `xattr`。
+4b. **签名自检**：下载 DMG 后 `codesign -dvv /Volumes/CaptureKit/CaptureKit.app` 应显示 `Authority=CaptureKit Developer`。v0.1.3 草稿及更早版本显示的是 `Signature=adhoc`。
 5. **Homepage**：Pages 生效，下载按钮拿到最新 DMG。
 6. **隐私复核**：Sparkle 检查更新时抓包/日志确认无系统剖析上报（SUEnableSystemProfiling=false）。
 
@@ -64,6 +64,6 @@ cat /tmp/appcast-dryrun/appcast.xml
 | CI 上 SPM 拉取 Sparkle 超时 | 重跑即可（GitHub 网络抖动）；持续失败检查 `exactVersion` 与网络策略 |
 | appcast 缺签名 | Secret `SPARKLE_PRIVATE_KEY` 未配置或内容有换行——value 必须与私钥文件内容逐字一致 |
 | 客户端「检查更新」报错 | 看 App 日志（Console.app 搜 SUUpdater）；常见：`SUPublicEDKey` 与私钥不配对、feed URL 404（首个 Release 未上传 appcast.xml） |
-| 升级后每次启动都要求重新授权屏幕录制 | 旧版 ad-hoc 签名遗留：`tccutil reset ScreenCapture com.wanghao.capturekit` 后对 v0.1.3+ 重新授权一次即可；v0.1.3 起证书身份稳定，后续更新自动保留授权 |
+| 升级后每次启动都要求重新授权屏幕录制 | v0.1.2 及更早是 ad-hoc 签名，授权留不住。先 `tccutil reset ScreenCapture com.wanghao.capturekit` 清掉旧条目，再安装 v0.1.4+ 并重新授权一次。若 v0.1.4+ 之后仍复现，说明自签名证书方案没有解决问题（ADR-030 的假设未被证实），需要重新排查 |
 | 更新安装后被 Gatekeeper 拦截 | ADR-029 已知边界：重跑 `xattr -dr com.apple.quarantine /Applications/CaptureKit.app` |
 | 老版本收不到新更新 | 检查 `CFBundleVersion`（run number）是否严格递增——Sparkle 按 build 号比较 |

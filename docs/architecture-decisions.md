@@ -215,3 +215,9 @@
 - **决策**：本地生成自签名代码签名证书（CN=CaptureKit Developer，EKU=codeSigning，10 年），导入登录钥匙串并信任；`build-release.sh` 用 `MACOS_SIGNING_IDENTITY` 签名（缺失时回退 ad-hoc 并告警）；CI 从 Secret 导入 p12 到临时钥匙串。TCC 从此绑定证书身份——同一证书签名的任何版本（含 Sparkle 更新）授权自动保留。
 - **工具链实证**：OpenSSL 3 默认 p12（PBES2/AES-256）macOS `security import` 报 MAC 校验失败，需 `-certpbe/-keypbe PBE-SHA1-3DES -macalg sha1`；`security add-trusted-cert -r trustRoot`（用户域）非交互可用；`find-identity -p codesigning` 验证身份有效。
 - **代价**：p12 是信任根，丢失则授权再次失效（与 Sparkle EdDSA 私钥同级备份）；证书 10 年过期需续签重发引导。无 Apple 公证的安全语义不变（EdDSA 验签 + 用户信任来源）。
+- **补充（v0.1.4 发版前更正）**：
+  - 初版 v0.1.3 流水线产物实际仍是 ad-hoc：全新 runner 上自签名证书不受信任，`find-identity -v` 为 0，脚本按设计回退，而文档却已写成「授权自动保留」。该草稿未公开。
+  - `security add-trusted-cert -r trustRoot` 在 GitHub 的 macOS runner 上**挂起**（步骤卡住 20 分钟后取消），不能用于 CI。
+  - 本地实证：撤销信任后 `find-identity -v` 为 0，但 `codesign --sign "CaptureKit Developer"` 成功且 `--verify --deep --strict` 通过——签名不要求证书受信任。故 CI 不做信任设置，身份检测改用不带 `-v` 的 `find-identity`。
+  - 防回归：`MACOS_SIGNING_REQUIRED=1`（发布必开）时找不到身份直接失败；签名后核对 `Authority`，不一致即终止。
+  - **「自签名证书能让 TCC 授权跨版本保留」仍是假设**，截至 v0.1.4 发版未经实机验证；根因推断（ad-hoc 指纹变化导致授权留不住）同样未经直接证实——v0.1.1 时提出的 Translocation 解释已被否定（应用一直从 /Applications 运行）。
