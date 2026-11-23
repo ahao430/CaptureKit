@@ -480,6 +480,8 @@ extension ContentType {
 @MainActor
 final class HistoryWindowController {
     private var window: NSWindow?
+
+    var windowRef: NSWindow? { window }
     private let history: HistoryService
     private var viewModel: HistoryViewModel?
 

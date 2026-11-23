@@ -21,20 +21,6 @@
                ReferencedContainer = "container:CaptureKit.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "NO"
-            buildForProfiling = "NO"
-            buildForArchiving = "NO"
-            buildForAnalyzing = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "4F92BB426959B2609FE9A958"
-               BuildableName = "CaptureKitTests.xctest"
-               BlueprintName = "CaptureKitTests"
-               ReferencedContainer = "container:CaptureKit.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -53,20 +39,7 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "4F92BB426959B2609FE9A958"
-               BuildableName = "CaptureKitTests.xctest"
-               BlueprintName = "CaptureKitTests"
-               ReferencedContainer = "container:CaptureKit.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
-      <CommandLineArguments>
-      </CommandLineArguments>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"

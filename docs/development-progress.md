@@ -307,3 +307,17 @@ Phase 5 批次 2 已完成：QuickAccessPanel（⌘⇧V：搜索/键盘导航/En
 5. 发更高版本 → 老版本检出更新 → 确认安装 → 自动重启为新版（若被 Gatekeeper 拦截重跑 xattr，记录到 ADR-029）。
 6. Settings → Pages（main /docs）→ Homepage 可访问且下载按钮指向最新 DMG。
 7. Intel Mac 或 Rosetta 下 DMG 可运行（universal 断言已在 CI 日志）。
+
+## 品牌与文档资产批次（图标 / 截图 / 主页）
+
+| 任务 | 状态 | 说明 |
+| --- | --- | --- |
+| 应用图标（gpt-image 生成 → squircle 后处理 → AppIcon.appiconset 单尺寸 512@2x） | Done | actool 校验通过，AppIcon.icns 产出；favicon/logo 同源 |
+| 演示模式（--demo-editor/history/settings/quick/popover/overlay + --demo-snap 自截图） | Done | 历史演示走临时数据库不污染真实数据；mock 网页底图归一化 1600×1000（2x 屏 cgImage 3200×2000 陷阱） |
+| 真实 UI 截图 ×3（编辑器/历史/设置）入 docs/images/ | Done | 窗口离屏快照（cacheDisplay）绕过终端无屏幕录制 TCC 的限制；screencapture 在本机只能拍到壁纸 |
+| 主页截图区（编辑器 hero + 历史/设置卡）+ 真实图标导航/favicon + design 审计 0 必修 | Done | 动态版本 fetch 因「页面不调用服务」规则移除 |
+| README「界面一览」章节 + 图标说明 | Done | |
+
+开发环境注意（本机 Xcode 26.6 / macOS 27.2）：scheme 的 build targets 同时包含 app 与测试 target 时，xcodebuild 会卡死在 CreateBuildDescription（SWBBuildService 挂起，100% 复现；-target 模式与纯 app scheme 正常）。本地构建用 `xcodebuild -target CaptureKit`；CI（macos-26 runner）行为待首次流水线验证，若同样挂死需将 test 改为独立 scheme。
+
+人工验收：图标在 Dock/关于面板/Finder 显示是否清晰；主页截图区块渲染；GitHub 首次 CI 与 Release 流水线（见 docs/releasing.md）。

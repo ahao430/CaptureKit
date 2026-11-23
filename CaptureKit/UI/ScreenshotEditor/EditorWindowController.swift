@@ -90,9 +90,11 @@ final class EditorWindowController: NSObject, NSWindowDelegate {
 
     private func fitWindow(to image: CGImage) {
         guard let window else { return }
+        // 主屏（origin 0,0）为约束基准，避免多屏下窗口开到不可截图的屏幕
+        let primary = NSScreen.screens.first(where: { $0.frame.origin == .zero }) ?? NSScreen.main
         let maxContent = NSSize(
-            width: NSScreen.main?.visibleFrame.width ?? 1200,
-            height: (NSScreen.main?.visibleFrame.height ?? 800) - 120
+            width: primary?.visibleFrame.width ?? 1200,
+            height: (primary?.visibleFrame.height ?? 800) - 120
         )
         let content = NSSize(
             width: min(max(680, CGFloat(image.width) * 0.75 + 40), maxContent.width),

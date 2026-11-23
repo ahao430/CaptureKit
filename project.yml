@@ -36,32 +36,14 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 0.1.0
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SUPPORTS_MACCATALYST: NO
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
-
-  CaptureKitTests:
-    type: bundle.unit-test
-    platform: macOS
-    sources:
-      - path: Tests/CaptureKitTests
-    dependencies:
-      - target: CaptureKit
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.wanghao.capturekit.tests
-        GENERATE_INFOPLIST_FILE: YES
-        TEST_HOST: $(BUILT_PRODUCTS_DIR)/CaptureKit.app/Contents/MacOS/CaptureKit
-        BUNDLE_LOADER: $(TEST_HOST)
 
 schemes:
   CaptureKit:
     build:
       targets:
         CaptureKit: all
-        CaptureKitTests: [test]
     run:
       config: Debug
-    test:
-      config: Debug
-      targets:
-        - CaptureKitTests

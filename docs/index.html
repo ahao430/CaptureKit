@@ -6,6 +6,8 @@
 <title>CaptureKit — Capture. Organize. Reuse.</title>
 <meta name="description" content="A lightweight, native menu-bar app for macOS: screenshots, screen recording, GIF, scrolling captures, clipboard history and OCR — everything stays on your Mac.">
 <script>document.documentElement.classList.add('js')</script>
+<link rel="icon" type="image/png" href="images/icon-256.png">
+<link rel="apple-touch-icon" href="images/icon-1024.png">
 <style>
 /* ============ Tokens ============ */
 :root {
@@ -265,6 +267,16 @@ kbd {
 }
 @keyframes chip-run { to { transform: translateX(-50%); } }
 
+/* ============ Screenshots ============ */
+.shot-hero .core { padding: 10px; gap: 0; }
+.shot-hero img { width: 100%; height: auto; border-radius: calc(var(--radius-inner) - 8px); }
+.shot-hero figcaption {
+  padding: 14px 18px 10px; font-size: 14.5px; color: var(--muted);
+}
+.shot-grid figure .core { padding: 10px; gap: 0; }
+.shot-grid img { width: 100%; height: auto; border-radius: calc(var(--radius-inner) - 8px); }
+.shot-grid figcaption { padding: 12px 14px 8px; font-size: 12px; letter-spacing: 0.01em; color: var(--faint); }
+
 /* ============ Section head ============ */
 .head { max-width: 640px; margin-bottom: 56px; }
 .head h2 { margin: 20px 0 16px; }
@@ -422,10 +434,7 @@ footer .row { display: flex; gap: 22px; }
 <header>
   <nav class="nav" aria-label="Primary">
     <a class="wordmark" href="#top">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-        <path d="M3 8V6a2 2 0 0 1 2-2h2M15 4h2a2 2 0 0 1 2 2v2M19 14v2a2 2 0 0 1-2 2h-2M9 18H5a2 2 0 0 1-2-2v-2" stroke-linecap="round"/>
-        <circle cx="12" cy="12" r="3.2"/>
-      </svg>
+      <img src="images/icon-256.png" width="22" height="22" alt="" aria-hidden="true">
       CaptureKit
     </a>
     <div class="links">
@@ -536,6 +545,39 @@ footer .row { display: flex; gap: 22px; }
       <span>Local-first, no uploads</span>
     </div>
   </div>
+
+  <!-- Screenshots -->
+  <section id="screenshots">
+    <div class="wrap">
+      <div class="head reveal">
+        <span class="eyebrow">Screenshots</span>
+        <h2>The real app, not renderings.</h2>
+        <p>Every frame below is a capture of CaptureKit itself.</p>
+      </div>
+
+      <figure class="shot-hero card wide reveal">
+        <div class="core">
+          <img src="images/shot-editor.png" alt="The annotation editor: an arrow, a text callout, a rectangle, a numbered marker and a mosaic patch over a captured page" width="1600" height="1000" loading="lazy">
+          <figcaption>Annotate a capture: arrow, text, highlight, numbering — and mosaic over anything sensitive.</figcaption>
+        </div>
+      </figure>
+
+      <div class="bento shot-grid">
+        <figure class="card three reveal">
+          <div class="core">
+            <img src="images/shot-history.png" alt="Unified history window with categories, search and thumbnails" loading="lazy">
+            <figcaption>One local history for screenshots, recordings and clipboard</figcaption>
+          </div>
+        </figure>
+        <figure class="card three reveal">
+          <div class="core">
+            <img src="images/shot-settings.png" alt="Settings window: launch options, OCR and update preferences" loading="lazy">
+            <figcaption>Settings — privacy, OCR, auto-update</figcaption>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </section>
 
   <!-- Features -->
   <section id="features">

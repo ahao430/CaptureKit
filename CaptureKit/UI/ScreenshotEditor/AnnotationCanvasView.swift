@@ -113,7 +113,15 @@ final class AnnotationCanvasView: NSView {
     init(document: EditorDocument) {
         self.document = document
         super.init(frame: .zero)
-        postsFrameChangedNotifications = false
+        postsFrameChangedNotifications = true
+    }
+
+    override func layout() {
+        super.layout()
+        // 首次布局 & 未被用户改过视口时，随尺寸重适配（窗口从大变小/初次显示都归位）
+        if !isViewportUserModified, bounds.width > 1, bounds.height > 1 {
+            viewport = .fitted(imageSize: imageSize, in: bounds.size)
+        }
     }
 
     @available(*, unavailable)

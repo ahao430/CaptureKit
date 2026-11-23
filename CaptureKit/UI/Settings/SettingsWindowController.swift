@@ -10,6 +10,8 @@ final class SettingsWindowController {
     private var window: NSWindow?
     private var updateCoordinator: UpdateCoordinator?
 
+    var windowRef: NSWindow? { window }
+
     init(store: SettingsStore, history: HistoryService? = nil) {
         self.store = store
         self.history = history

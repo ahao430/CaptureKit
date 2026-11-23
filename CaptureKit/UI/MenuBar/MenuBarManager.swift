@@ -102,6 +102,11 @@ final class MenuBarManager {
         popover?.performClose(nil)
     }
 
+    /// 文档截图演示（--demo-popover）：直接弹出 Popover 供 `screencapture` 抓取。
+    func showPopoverForDemo() {
+        showPopover()
+    }
+
     /// 执行动作前先关闭 Popover（Overlay 全屏窗口需要立即接管交互）。
     private func perform(_ action: (MenuBarManager) -> Void) {
         closePopover()

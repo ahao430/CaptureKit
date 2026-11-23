@@ -73,6 +73,11 @@ final class AppEnvironment {
             return
         }
 
+        // 演示自截图模式：接管生命周期，截完即退（不需要 TCC）
+        if DemoSelfCapture.runIfRequested() {
+            Log.app.info("Demo self-capture mode")
+        }
+
         menuBar.setup()
         AppDockIconService.apply(showDockIcon: settings.settings.general.showDockIcon)
         registerHotkeys()
@@ -81,6 +86,145 @@ final class AppEnvironment {
         startUpdater()
 
         Log.app.info("CaptureKit started (macOS \(ProcessInfo.processInfo.operatingSystemVersionString))")
+
+        runDemoIfRequested()
+    }
+
+    // MARK: - 文档截图演示（--demo-* 启动参数；只开真实窗口供截图，不改变业务行为）
+
+    private var demoHistoryWindow: HistoryWindowController?
+    private var demoEditor: EditorWindowController?
+
+    /// 文档截图辅助：把窗口钳制到主屏可见区内并居中（避免跨屏坐标漂移与超屏窗口）。
+    private func positionOnPrimaryScreen(_ window: NSWindow?) {
+        guard let window else { return }
+        let main = NSScreen.screens.first(where: { $0.frame.origin == .zero }) ?? NSScreen.screens.first
+        guard let visible = main?.visibleFrame else { return }
+        var frame = window.frame
+        // 超屏窗口按可见区等比缩小（内容视口会随布局重适配）
+        let maxWidth = min(visible.width - 80, 1240)
+        let maxHeight = min(visible.height - 80, 780)
+        if frame.width > maxWidth || frame.height > maxHeight {
+            let scale = min(maxWidth / max(frame.width, 1), maxHeight / max(frame.height, 1))
+            frame.size = NSSize(width: frame.width * scale, height: frame.height * scale)
+            window.setContentSize(frame.size)
+        }
+        window.setFrame(frame, display: true)
+        var centered = window.frame
+        centered.origin = CGPoint(
+            x: visible.midX - centered.width / 2,
+            y: visible.midY - centered.height / 2
+        )
+        window.setFrame(centered, display: true)
+    }
+
+    private func runDemoIfRequested() {
+        let args = Set(ProcessInfo.processInfo.arguments)
+        if args.contains("--demo-settings") {
+            settingsWindow.show()
+            positionOnPrimaryScreen(settingsWindow.windowRef)
+        }
+        if args.contains("--demo-settings-snap") {
+            settingsWindow.show()
+            positionOnPrimaryScreen(settingsWindow.windowRef)
+        }
+        if args.contains("--demo-popover") {
+            menuBar.showPopoverForDemo()
+        }
+        if args.contains("--demo-overlay") {
+            captureCoordinator.startRegionCapture()
+        }
+        if args.contains("--demo-history") || args.contains("--demo-quick") {
+            Task { await runHistoryDemo(showWindow: args.contains("--demo-history")) }
+        }
+        if args.contains("--demo-editor") {
+            runEditorDemo()
+        }
+    }
+
+    /// 临时数据库历史演示（不污染真实历史）。
+    private func runHistoryDemo(showWindow: Bool) async {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CaptureKitDemo-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        guard let repository = try? ContentRepository.temporary() else { return }
+        let service = HistoryService(
+            repository: repository,
+            fileStore: ContentFileStore(rootURL: root),
+            databaseURL: root.appendingPathComponent("demo.sqlite")
+        )
+
+        await service.recordScreenshot(image: DemoContent.mockWebPage(), source: "capture")
+        _ = await service.recordClipboard(reading: ClipboardReading(
+            text: "Capture. Organize. Reuse.",
+            imageIsPNG: false, fileURLs: [],
+            sourceBundleID: "com.apple.Safari",
+            representations: ["public.utf8-plain-text"]
+        ))
+        _ = await service.recordClipboard(reading: ClipboardReading(
+            text: "https://github.com/ahao430/CaptureKit",
+            imageIsPNG: false, fileURLs: [],
+            sourceBundleID: "com.apple.Safari",
+            representations: ["public.utf8-plain-text", "public.url"]
+        ))
+        _ = await service.recordClipboard(reading: ClipboardReading(
+            text: "xattr -dr com.apple.quarantine /Applications/CaptureKit.app",
+            imageIsPNG: false, fileURLs: [],
+            sourceBundleID: "com.apple.Terminal",
+            representations: ["public.utf8-plain-text"]
+        ))
+
+        if showWindow {
+            let window = HistoryWindowController(history: service)
+            demoHistoryWindow = window
+            window.show()
+            positionOnPrimaryScreen(window.windowRef)
+        } else {
+            QuickAccessPanelController.shared.attach(history: service)
+            QuickAccessPanelController.shared.toggle()
+        }
+    }
+
+    /// 编辑器演示：合成底图 + 程序化标注。
+    private func runEditorDemo() {
+        let controller = EditorWindowController()
+        demoEditor = controller
+        controller.show(image: DemoContent.mockWebPage())
+        positionOnPrimaryScreen(controller.windowRef)
+
+        let red = AnnotationStyle(color: .red, lineWidth: 6, isFilled: false, fontSize: 44)
+        let blue = AnnotationStyle(color: .blue, lineWidth: 5, isFilled: false, fontSize: 20)
+
+        // 画布标注坐标为 y 向上（图像底为 0）：换算自上而下坐标
+        func top(_ yTop: CGFloat) -> CGFloat { CGFloat(DemoContent.pageHeight) - yTop }
+        let document = controller.document
+        document?.add(Annotation(
+            type: .rectangle,
+            geometry: .rect(CGRect(x: 372, y: top(620), width: 646, height: 256)),
+            style: blue
+        ))
+        document?.add(Annotation(
+            type: .arrow,
+            geometry: .arrow(from: CGPoint(x: 1150, y: top(760)), to: CGPoint(x: 1340, y: top(690))),
+            style: red
+        ))
+        document?.add(Annotation(
+            type: .text,
+            geometry: .text(origin: CGPoint(x: 880, y: top(790)), string: "导出按钮在这里"),
+            style: AnnotationStyle(color: .red, lineWidth: 4, isFilled: false, fontSize: 42)
+        ))
+        document?.add(Annotation(
+            type: .mosaic,
+            geometry: .mosaic(CGRect(x: 1052, y: top(180), width: 482, height: 34))
+        ))
+        document?.add(Annotation(
+            type: .numberedMarker,
+            geometry: .numberedMarker(center: CGPoint(x: 380, y: top(372)), number: 1)
+        ))
+        document?.add(Annotation(
+            type: .numberedMarker,
+            geometry: .numberedMarker(center: CGPoint(x: 1040, y: top(520)), number: 2)
+        ))
     }
 
     func shutdown() {
