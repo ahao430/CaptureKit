@@ -15,6 +15,8 @@ KEY_FILE="${3:-}"
 
 # generate_appcast 把前缀当作目录基址：不以 / 结尾会丢弃最后一段（实测），统一补齐
 case "$PREFIX" in */) ;; *) PREFIX="$PREFIX/" ;; esac
+# 工具在 cd 后会按 CWD 重解析相对路径（CI 实测翻倍错误），一律转绝对
+DIR="$(cd "$DIR" && pwd)"
 
 SPARKLE_VERSION="2.10.1"
 SPARKLE_DIST_URL="https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
