@@ -39,9 +39,15 @@ echo "==> 架构"
 lipo -info "$BIN" | tee /dev/stderr | grep -q "arm64" 
 lipo -info "$BIN" | grep -q "x86_64"
 
-# 4. 强制统一 ad-hoc 签名（含嵌入的 Sparkle 框架）并校验
+# 4. 签名：优先稳定身份（MACOS_SIGNING_IDENTITY，TCC 授权跨版本保留），
+#    身份缺失时回退 ad-hoc（授权每次构建失效，仅开发用）
 echo "==> 签名"
-codesign --force --sign - --deep "$APP"
+SIGN_IDENTITY="${MACOS_SIGNING_IDENTITY:-CaptureKit Developer}"
+if ! security find-identity -v -p codesigning 2>/dev/null | grep -q "$SIGN_IDENTITY"; then
+  echo "警告：未找到签名身份 '$SIGN_IDENTITY'，回退 ad-hoc（TCC 授权将无法跨版本保留）"
+  SIGN_IDENTITY="-"
+fi
+codesign --force --sign "$SIGN_IDENTITY" --deep "$APP"
 codesign --verify --deep --strict "$APP"
 
 # 5. 输出目录

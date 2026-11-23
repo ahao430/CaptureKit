@@ -208,3 +208,10 @@
   - Ed25519 密钥对已生成：公钥入 `Info.plist SUPublicEDKey`，私钥导出至 `~/.config/capturekit/sparkle_ed25519_privkey.pem`（仓库外，勿提交、勿丢失——丢失则老版本无法校验新更新，只能重发 + 换 key 引导重装）。
   - 隐私：`SUEnableSystemProfiling = false`（检查更新零信息上报）；`SUAutomaticallyUpdate = false`（安装需确认）。
 - **边界（人工验收项）**：未公证应用经 Sparkle 更新后可能再被 Gatekeeper 拦截（quarantine 属性随新包回来），届时重跑 `xattr` 即可——已写入 README/Homepage；EdDSA 完整性校验 ≠ Apple 公证。
+
+## ADR-030 稳定签名 = 自签名代码签名证书（TCC 授权跨版本保留；v0.1.2 用户实测驱动）
+
+- **根因（用户实测 v0.1.2 仍每次弹授权）**：TCC 把屏幕录制授权绑定到应用的代码签名标识。ad-hoc 签名的 cdhash 每次构建都不同——Sparkle 升级一次、授权即失效一次；且 System Settings 对 ad-hoc 应用的开关写入经常不生效（切换后仍拒绝），用户陷入「授权→失败→再授权」循环。此前 ADR-029 文档的「每版本重新授权一次」在真实使用中不可接受。
+- **决策**：本地生成自签名代码签名证书（CN=CaptureKit Developer，EKU=codeSigning，10 年），导入登录钥匙串并信任；`build-release.sh` 用 `MACOS_SIGNING_IDENTITY` 签名（缺失时回退 ad-hoc 并告警）；CI 从 Secret 导入 p12 到临时钥匙串。TCC 从此绑定证书身份——同一证书签名的任何版本（含 Sparkle 更新）授权自动保留。
+- **工具链实证**：OpenSSL 3 默认 p12（PBES2/AES-256）macOS `security import` 报 MAC 校验失败，需 `-certpbe/-keypbe PBE-SHA1-3DES -macalg sha1`；`security add-trusted-cert -r trustRoot`（用户域）非交互可用；`find-identity -p codesigning` 验证身份有效。
+- **代价**：p12 是信任根，丢失则授权再次失效（与 Sparkle EdDSA 私钥同级备份）；证书 10 年过期需续签重发引导。无 Apple 公证的安全语义不变（EdDSA 验签 + 用户信任来源）。

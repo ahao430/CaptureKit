@@ -1,7 +1,10 @@
 name: Release
 
 # Tag 驱动发布（ADR-028）：推 v* 标签 → Universal 构建 → DMG + Sparkle zip + appcast → GitHub Release
-# 依赖仓库 Secret：SPARKLE_PRIVATE_KEY（EdDSA 私钥文件内容，见 docs/releasing.md）
+# 依赖仓库 Secret：
+#   SPARKLE_PRIVATE_KEY   — Sparkle EdDSA 私钥（appcast 签名）
+#   MACOS_SIGNING_P12_B64 — 自签名代码签名证书 p12（base64）；TCC 授权跨版本保留（ADR-030）
+#   MACOS_SIGNING_P12_PASSWORD — p12 密码
 on:
   push:
     tags: ['v*']
@@ -22,7 +25,27 @@ jobs:
           if [[ "$TAG" != v* ]]; then echo "标签必须以 v 开头"; exit 1; fi
           echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
 
+      - name: Import code signing certificate
+        env:
+          MACOS_SIGNING_P12_B64: ${{ secrets.MACOS_SIGNING_P12_B64 }}
+          MACOS_SIGNING_P12_PASSWORD: ${{ secrets.MACOS_SIGNING_P12_PASSWORD }}
+        run: |
+          # 临时钥匙串：不污染 runner 默认链，结束自动丢弃
+          KEYCHAIN="build.keychain-db"
+          KEYCHAIN_PASS="$(openssl rand -hex 16)"
+          security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
+          security set-keychain-settings -t 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
+          echo "$MACOS_SIGNING_P12_B64" | base64 --decode > signing.p12
+          security import signing.p12 -k "$KEYCHAIN" -P "$MACOS_SIGNING_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,codesign: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr '\n' ' ')
+          security find-identity -v -p codesigning "$KEYCHAIN"
+          rm signing.p12
+
       - name: Build release artifacts (universal DMG + update zip)
+        env:
+          MACOS_SIGNING_IDENTITY: CaptureKit Developer
         run: |
           brew install xcodegen
           scripts/build-release.sh "$VERSION" "${{ github.run_number }}"
