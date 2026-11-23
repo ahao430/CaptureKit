@@ -379,6 +379,8 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
         if let window = view.window {
             window.makeFirstResponder(field)
         }
+        // 保险：输入框打开后把工具栏压回顶层（防激活类系统行为改变层序）
+        toolbar?.orderFrontRegardless()
     }
 
     /// 结束文字编辑（Enter = 提交非空文本；Esc / 点击其他处 = 非空提交、空丢弃）。
@@ -399,6 +401,8 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
             ))
         }
         overlaySelectionDidChange()
+        // 保险：提交后把工具栏压回顶层
+        toolbar?.orderFrontRegardless()
     }
 
     /// endTextEditing 防重入（resign 触发的 didEndEditing 会再次进入）
@@ -567,7 +571,7 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
         guard isPresented else { return }
         // 退出诊断：定位"一次操作就退出"类问题（哪个入口、当时状态）
         let state = "intent=\(model.captureIntent) tool=\(model.activeTool.map(\.rawValue) ?? "none") annotations=\(model.annotations.count) editing=\(activeTextField != nil)"
-        Log.overlay.error("OVERLAY FINISH: \(String(describing: result), privacy: .public) | \(state, privacy: .public)")
+        Log.overlay.info("OVERLAY FINISH: \(String(describing: result), privacy: .public) | \(state, privacy: .public)")
         dismiss()
         onFinish?(result)
     }
@@ -608,6 +612,9 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
 
         toolbar.reflect(tool: model.activeTool, style: model.annotateStyle)
         toolbar.position(above: selection, in: screen)
+        // 显示即置顶：AppKit 在某些点击序列后会把 key 窗口（overlay）重新排到
+        // 兄弟面板上面（实测 marker mouseUp 后层序翻转），这里无条件压回
+        toolbar.orderFrontRegardless()
         if !toolbar.isVisible {
             toolbar.orderFrontRegardless()
         }

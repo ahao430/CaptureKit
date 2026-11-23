@@ -483,3 +483,17 @@ CaptureResultToast 增加 showText 纯文本变体（与图片 toast 共用定�
 用户实测：输入框打开后鼠标移到工具栏，按钮点不了、仍处于文字输入态。
 修复：mouseMoved 检测鼠标移出输入框范围（含 6pt 容差）即自动提交（非空落标注），
 编辑态立即解除，工具栏恢复正常点击；endTextEditing 加防重入保护。
+
+## 层序翻转根治：CGEvent 自动化复现实锤（2026-11-23，第九轮反馈）
+
+不再盲改——写 CGEvent 驱动脚本 + CGWindowList 层序 dump + 应用侧探针日志，本地完整复现：
+
+| 证据 | 结论 |
+| --- | --- |
+| driver 分步 dump：工具栏选区后置顶 ✓ → 点选区内（marker/文字）后 overlay 升到工具栏上面 | "其他按钮点不了" = 点击实际落在 overlay 上（变成绘制/重开输入框） |
+| 翻转点在 mouseUp 尾部的 updateToolbar 之后；矩形/画笔路径因 orderOut→orderFrontRegardless 循环自愈，marker/文字路径工具栏一直可见跳过置顶 | 显式修复：工具栏显示即无条件 orderFrontRegardless |
+| 点击选区会激活 App 并把 key 窗口置顶（nonactivatingPanel 修复后复现消失） | CaptureOverlayWindow 从 NSWindow 改为 NSPanel(.borderless + .nonactivatingPanel) |
+| driver2 全流程：文字打字 ab+Return → TEXT COMMITTED → 编号 TOOL TAPPED → UNDO TAPPED → regionAnnotated 交付（含 1 编号 + 1 文字） | 端到端全部打通 |
+
+其他：中文输入法组字 Enter 不再误提交（markedRange）；意图路由每选区只触发一次；
+Esc 直接取消；文字输入为 Overlay 内嵌 NSTextField（复用已验证键盘链路），移开自动提交。
