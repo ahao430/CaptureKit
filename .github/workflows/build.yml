@@ -33,6 +33,6 @@ jobs:
       - name: Test
         run: |
           set -o pipefail
-          xcodebuild -project CaptureKit.xcodeproj -scheme CaptureKit \
+          xcodebuild -project CaptureKit.xcodeproj -scheme CaptureKitTests \
             -destination 'platform=macOS' -derivedDataPath .build-ci \
             test 2>&1 | tail -30
