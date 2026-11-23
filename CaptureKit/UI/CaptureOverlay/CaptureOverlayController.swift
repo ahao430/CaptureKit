@@ -69,6 +69,9 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
     /// 内联 OCR（不关闭截图，钉钉行为）：捕获选区 → 识别 → 结果窗展示
     var onInlineOCR: ((CGRect) -> Void)?
 
+    /// 滚动截图专用入口（菜单栏「滚动截图」）：选区确定后自动进入「▶ 待开始」态
+    var autoScrollPending = false
+
     /// 展示期间是否允许再次 present（防重入）
     private(set) var isPresented = false
 
@@ -151,8 +154,7 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
             self.onInlineOCR?(selection)
         }
         toolbarPanel.onScrollCapture = { [weak self] in
-            guard let selection = self?.model.selection else { return }
-            self?.finish(.scrollRegion(selection))
+            self?.enterScrollPending()
         }
         toolbarPanel.onRecordVideo = { [weak self] in
             guard let selection = self?.model.selection else { return }
@@ -173,7 +175,10 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
             guard let self else { return }
             self.model.captureIntent = intent
             // 已有选区时切换意图 → 立即按新意图执行
-            if intent == .ocr, self.model.selection != nil, !self.model.isInteracting {
+            if intent == .scroll, self.model.selection != nil, !self.model.isInteracting {
+                self.intentFiredSelection = self.model.selection
+                self.enterScrollPending()
+            } else if intent == .ocr, self.model.selection != nil, !self.model.isInteracting {
                 // 文字识别不退出截图
                 self.intentFiredSelection = self.model.selection
                 self.onInlineOCR?(self.model.selection!)
@@ -271,6 +276,13 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
         for view in views { view.needsDisplay = true }
         updateToolbar()
 
+        // 滚动截图专用入口：选区确定 → 选区中央出 ▶（点击才开始采集）
+        if autoScrollPending, model.selection != nil,
+           !model.isInteracting, !model.isScrollPending {
+            enterScrollPending()
+            return
+        }
+
         // 非截图意图：选区确定后只执行一次（此后标注等变化不再触发）
         if showsModePanel,
            model.captureIntent != .screenshot,
@@ -278,7 +290,12 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
            !model.isInteracting, !model.isAnnotateDrafting,
            model.selection != intentFiredSelection {
             intentFiredSelection = model.selection
-            if model.captureIntent == .ocr {
+            if model.captureIntent == .scroll {
+                // 滚动截图：选区中央出 ▶，点击才开始（钉钉行为）
+                model.isScrollPending = true
+                model.captureIntent = .screenshot
+                updateToolbar()
+            } else if model.captureIntent == .ocr {
                 // 文字识别不退出截图（钉钉行为）：识别后回到截图态
                 onInlineOCR?(model.selection!)
                 model.captureIntent = .screenshot
@@ -312,6 +329,7 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
     private func resetAnnotateState() {
         model.activeTool = nil
         model.captureIntent = .screenshot
+        model.isScrollPending = false
         intentFiredSelection = nil
         model.annotations = []
         model.draftAnnotation = nil
@@ -320,6 +338,22 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
         model.annotationDrag = nil
         model.selectionBaseImage = nil
         model.selectionBaseImageForRect = nil
+    }
+
+    // MARK: - 长截图待开始（钉钉：▶ 开始 → 滚动 → 手动结束保存）
+
+    /// 进入待开始态：隐藏工具栏/胶囊，选区中央显示 ▶。
+    private func enterScrollPending() {
+        guard model.selection != nil else { return }
+        model.isScrollPending = true
+        model.activeTool = nil
+        overlaySelectionDidChange()
+    }
+
+    /// 用户点击 ▶ → 交给 ScrollCoordinator 开始滚动采集（overlay 收起）。
+    func overlayRequestsStartScroll() {
+        guard let selection = model.selection else { return }
+        finish(.scrollRegion(selection))
     }
 
     /// 清除选区（连同已画标注一并丢弃；模式胶囊重新出现）。
@@ -565,10 +599,7 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
         guard let selection = model.selection else { return }
         finish(.recordRegion(selection, mode: .gif))
     }
-    @objc private func menuScroll() {
-        guard let selection = model.selection else { return }
-        finish(.scrollRegion(selection))
-    }
+    @objc private func menuScroll() { enterScrollPending() }
     @objc private func menuPin() {
         guard let selection = model.selection else { return }
         finish(.pinRegion(selection))
@@ -618,6 +649,13 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
     }
 
     private func updateToolbar() {
+        // 长截图待开始态：工具栏与胶囊都隐藏，只留选区中央 ▶
+        if model.isScrollPending {
+            toolbar?.orderOut(nil)
+            modePanel?.orderOut(nil)
+            return
+        }
+
         // 顶部模式胶囊：无选区时展示（选区出现后隐藏，截图流程专属）
         if showsModePanel, presentedMode == .region {
             if model.selection == nil {

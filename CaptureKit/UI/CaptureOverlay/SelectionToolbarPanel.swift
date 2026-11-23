@@ -14,9 +14,33 @@ enum OverlayLineWidth: Int, CaseIterable {
         }
     }
 
+    var displayName: String {
+        switch self {
+        case .thin: return "细"
+        case .medium: return "中"
+        case .thick: return "粗"
+        }
+    }
+
     /// 与任意线宽值匹配到最近的档位。
     static func nearest(to lineWidth: CGFloat) -> OverlayLineWidth {
         allCases.min { abs($0.value - lineWidth) < abs($1.value - lineWidth) } ?? .medium
+    }
+}
+
+extension AnnotationColor {
+    /// 中文显示名（悬浮提示用）
+    var displayName: String {
+        switch self {
+        case .red: return "红"
+        case .orange: return "橙"
+        case .yellow: return "黄"
+        case .green: return "绿"
+        case .blue: return "蓝"
+        case .purple: return "紫"
+        case .white: return "白"
+        case .black: return "黑"
+        }
     }
 }
 
@@ -96,7 +120,7 @@ final class SelectionToolbarPanel: NSPanel {
                 .withSymbolConfiguration(symbolConfiguration)
         }
 
-        /// 固定尺寸图标按钮（等大等距，钉钉式）；悬浮显示文字说明（toolTip）。
+        /// 固定尺寸图标按钮（等大等距，钉钉式）；悬浮在按钮**上方**显示文字说明。
         func makeIconButton(symbol: String, label: String, action: Selector) -> NSButton {
             let button: NSButton
             if let image = symbolImage(symbol) {
@@ -106,7 +130,7 @@ final class SelectionToolbarPanel: NSPanel {
             }
             button.isBordered = false
             button.contentTintColor = .white
-            button.toolTip = label
+            installTooltip(label, on: button)
             button.imageScaling = .scaleProportionallyDown
             button.setButtonType(.momentaryPushIn)
             button.translatesAutoresizingMaskIntoConstraints = false
@@ -126,7 +150,7 @@ final class SelectionToolbarPanel: NSPanel {
         colorCircleLayer.borderColor = NSColor.white.withAlphaComponent(0.8).cgColor
         colorCircleLayer.borderWidth = 1.5
         colorCircle.layer = colorCircleLayer
-        colorCircle.toolTip = "颜色 / 线宽"
+        installTooltip("颜色 / 线宽", on: colorCircle)
         let colorCircleBox = NSView(frame: NSRect(x: 0, y: 0, width: 24, height: 24))
         colorCircle.translatesAutoresizingMaskIntoConstraints = false
         colorCircleBox.addSubview(colorCircle)
@@ -150,6 +174,7 @@ final class SelectionToolbarPanel: NSPanel {
             swatch.widthAnchor.constraint(equalToConstant: 14).isActive = true
             swatch.heightAnchor.constraint(equalToConstant: 14).isActive = true
             swatch.tag = AnnotationColor.allCases.firstIndex(of: color) ?? 0
+            installTooltip("颜色：\(color.displayName)", on: swatch)
             colorButtons[color] = swatch
         }
         let swatchRow = NSStackView(views: AnnotationColor.allCases.map { colorButtons[$0]! })
@@ -167,6 +192,7 @@ final class SelectionToolbarPanel: NSPanel {
             dot.widthAnchor.constraint(equalToConstant: d).isActive = true
             dot.heightAnchor.constraint(equalToConstant: d).isActive = true
             dot.tag = width.rawValue
+            installTooltip("线宽：\(width.displayName)", on: dot)
             widthButtons[width] = dot
         }
         let widthRow = NSStackView(views: OverlayLineWidth.allCases.map { widthButtons[$0]! })
@@ -204,7 +230,7 @@ final class SelectionToolbarPanel: NSPanel {
 
         let undo = makeIconButton(symbol: "arrow.uturn.backward", label: "撤销", action: #selector(undoTapped))
         let ocr = makeIconButton(symbol: "text.viewfinder", label: "识别文字", action: #selector(recognizeTapped))
-        let scroll = makeIconButton(symbol: "scroll", label: "长截图", action: #selector(scrollTapped))
+        let scroll = makeIconButton(symbol: "arrow.up.arrow.down", label: "长截图", action: #selector(scrollTapped))
         let record = makeIconButton(symbol: "record.circle", label: "录屏", action: #selector(recordTapped))
         actionButtons["undo"] = undo
         actionButtons["ocr"] = ocr
@@ -296,6 +322,42 @@ final class SelectionToolbarPanel: NSPanel {
         origin.x = max(visible.minX + 4, min(origin.x, visible.maxX - frame.width - 4))
         origin.y = max(visible.minY + 4, min(origin.y, visible.maxY - frame.height - 4))
         setFrameOrigin(origin)
+    }
+
+    // MARK: - 悬浮提示（按钮上方、12pt）
+
+    /// trackingArea 身份 → 提示文本与所属视图
+    private var tooltipAreas: [ObjectIdentifier: (text: String, view: NSView)] = [:]
+
+    private func installTooltip(_ text: String, on view: NSView) {
+        view.toolTip = nil
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        view.addTrackingArea(area)
+        tooltipAreas[ObjectIdentifier(area)] = (text, view)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        if let area = event.trackingArea, let entry = tooltipAreas[ObjectIdentifier(area)] {
+            OverlayTooltip.show(entry.text, above: entry.view)
+        }
+        super.mouseEntered(with: event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        if let area = event.trackingArea, tooltipAreas[ObjectIdentifier(area)] != nil {
+            OverlayTooltip.hide()
+        }
+        super.mouseExited(with: event)
+    }
+
+    override func orderOut(_ sender: Any?) {
+        OverlayTooltip.hide()
+        super.orderOut(sender)
     }
 
     // MARK: - 动作

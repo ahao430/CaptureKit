@@ -24,6 +24,8 @@ protocol CaptureOverlayViewDelegate: AnyObject {
     func overlayRequestsCommitTextEditing()
     /// 鼠标移出输入框范围时自动提交（钉钉式：移开即收起，不阻塞工具栏）
     func overlayCommitTextEditingIfOutside(globalPoint: CGPoint)
+    /// 长截图待开始态：用户点击选区中央的 ▶
+    func overlayRequestsStartScroll()
 }
 
 @MainActor
@@ -103,6 +105,11 @@ final class CaptureOverlayView: NSView {
             // 3.5 标注常驻绘制（一体化工具栏：选中即标注，已提交 + 草稿），复用统一渲染管线
             drawAnnotations(context, selection: selection)
 
+            // 3.55 长截图待开始：选区中央 ▶ 播放按钮 + 提示（钉钉行为：点击才开始滚动）
+            if model.isScrollPending {
+                drawScrollPlayButton(context, selection: selection)
+            }
+
             // 3.6 选中标注的虚线包围盒（选择工具下）
             if model.activeTool == nil, let id = model.selectedAnnotationID,
                let annotation = model.annotations.first(where: { $0.id == id }) {
@@ -124,8 +131,8 @@ final class CaptureOverlayView: NSView {
             }
         }
 
-        // 6. 控制点（选择工具下才可调整选区；绘制工具下不干扰作画）
-        if let selection = model.selection, model.activeTool == nil {
+        // 6. 控制点（选择工具下才可调整选区；绘制工具下不干扰作画；长截图待开始态不显示）
+        if let selection = model.selection, model.activeTool == nil, !model.isScrollPending {
             for handle in SelectionHandle.allCases {
                 drawHandle(context, handle: handle, on: selection)
             }
@@ -153,6 +160,13 @@ final class CaptureOverlayView: NSView {
         // 文字编辑中：点击其他位置 = 提交并吞掉该次点击
         if delegate?.overlayTextEditingIsActive() == true {
             delegate?.overlayRequestsCommitTextEditing()
+            return
+        }
+
+        // 长截图待开始：点击选区中央 ▶ → 开始滚动采集
+        if model.isScrollPending, let selection = model.selection,
+           scrollPlayRect(for: selection).contains(point) {
+            delegate?.overlayRequestsStartScroll()
             return
         }
 
@@ -461,6 +475,49 @@ final class CaptureOverlayView: NSView {
     }
 
     // MARK: - 选区内标注（批次 2）
+
+    // MARK: - 长截图待开始（▶ 播放按钮）
+
+    /// ▶ 按钮的全局 rect（选区正中央，直径 64）。
+    private func scrollPlayRect(for selection: CGRect) -> CGRect {
+        let diameter: CGFloat = 64
+        return CGRect(
+            x: selection.midX - diameter / 2,
+            y: selection.midY - diameter / 2,
+            width: diameter,
+            height: diameter
+        )
+    }
+
+    private func drawScrollPlayButton(_ context: CGContext, selection: CGRect) {
+        let play = scrollPlayRect(for: selection)
+        // 仅在选区中心所在屏绘制（多屏去重）
+        guard screenFrame.contains(CGPoint(x: selection.midX, y: selection.midY)) else { return }
+        let local = CGRect(
+            x: play.minX - screenFrame.minX,
+            y: play.minY - screenFrame.minY,
+            width: play.width,
+            height: play.height
+        )
+        // 圆形底 + 三角
+        context.setFillColor(NSColor.white.withAlphaComponent(0.92).cgColor)
+        context.fillEllipse(in: local)
+        context.setStrokeColor(NSColor.systemBlue.withAlphaComponent(0.9).cgColor)
+        context.setLineWidth(2)
+        context.strokeEllipse(in: local)
+
+        let center = CGPoint(x: local.midX, y: local.midY)
+        let triangle = CGMutablePath()
+        triangle.move(to: CGPoint(x: center.x - 10, y: center.y + 14))
+        triangle.addLine(to: CGPoint(x: center.x - 10, y: center.y - 14))
+        triangle.addLine(to: CGPoint(x: center.x + 16, y: center.y))
+        triangle.closeSubpath()
+        context.setFillColor(NSColor.systemBlue.cgColor)
+        context.addPath(triangle)
+        context.fillPath()
+
+        drawBadge("点击 ▶ 开始滚动截图 · 手动/自动滚动 · 完成后点「结束并保存」", context: context, below: play)
+    }
 
     /// 全局点 → 选区本地坐标（原点 = 选区左下角，y 向上，与标注模型一致）。
     private func annotateLocal(_ global: CGPoint, selection: CGRect) -> CGPoint {

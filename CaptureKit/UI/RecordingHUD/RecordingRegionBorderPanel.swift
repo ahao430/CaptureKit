@@ -7,7 +7,11 @@ import AppKit
 final class RecordingRegionBorderPanel: NSPanel {
     private let borderWidth: CGFloat = 3
 
-    init(region: CGRect) {
+    private let color: NSColor
+
+    /// - Parameter color: 边框色（录制 = 红；滚动截图 = 蓝）
+    init(region: CGRect, color: NSColor = .systemRed) {
+        self.color = color
         let outer = region.insetBy(dx: -borderWidth, dy: -borderWidth)
         super.init(
             contentRect: outer,
@@ -23,7 +27,7 @@ final class RecordingRegionBorderPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         setFrameOrigin(outer.origin)
 
-        let view = BorderView(frame: NSRect(origin: .zero, size: outer.size), width: borderWidth)
+        let view = BorderView(frame: NSRect(origin: .zero, size: outer.size), width: borderWidth, color: color)
         contentView = view
     }
 
@@ -39,8 +43,11 @@ final class RecordingRegionBorderPanel: NSPanel {
     private final class BorderView: NSView {
         private let width: CGFloat
 
-        init(frame: NSRect, width: CGFloat) {
+        private let color: NSColor
+
+        init(frame: NSRect, width: CGFloat, color: NSColor) {
             self.width = width
+            self.color = color
             super.init(frame: frame)
         }
 
@@ -56,7 +63,7 @@ final class RecordingRegionBorderPanel: NSPanel {
             // 外 ∖ 内 = 环形边框
             context.addPath(outerPath)
             context.addPath(innerPath)
-            context.setFillColor(NSColor.systemRed.withAlphaComponent(0.9).cgColor)
+            context.setFillColor(color.withAlphaComponent(0.9).cgColor)
             context.fillPath(using: .evenOdd)
 
             // 四角小把手（提示可辨认）

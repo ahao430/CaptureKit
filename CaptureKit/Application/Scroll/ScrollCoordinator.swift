@@ -25,7 +25,11 @@ final class ScrollCoordinator {
     private let overlay: CaptureOverlayController
 
     private var panel: ScrollCapturePanel?
+    /// 选区边框（蓝色，提示滚动范围；不挡鼠标）
+    private var regionBorder: RecordingRegionBorderPanel?
     private var captureTimer: Timer?
+    /// 鼠标驱动滚动定时器（鼠标靠近选区下/上边缘时注入滚动事件）
+    private var edgeScrollTimer: Timer?
     private var frames: [CGImage] = []
     private var regionRect: CGRect?
     private(set) var state: ScrollCaptureState = .idle
@@ -71,14 +75,16 @@ final class ScrollCoordinator {
         guard state == .idle || state == .completed || state == .cancelled || state == .failed(nil) else { return }
         guard ensurePermission() else { return }
         state = .selecting
+        overlay.autoScrollPending = true
         overlay.present(mode: .region)
     }
 
     private func handleOverlayResult(_ result: CaptureOverlayController.Result) {
         switch result {
-        case .region(let rect, _):
+        case .region(let rect, _), .scrollRegion(let rect):
+            // 选区中央 ▶ 点击后进入
             beginCapturing(in: rect)
-        case .windowAt, .regionAnnotated, .recognizeRegion, .recordRegion, .scrollRegion, .pinRegion, .cancelled:
+        case .windowAt, .regionAnnotated, .recognizeRegion, .recordRegion, .pinRegion, .cancelled:
             state = .cancelled
         }
     }
@@ -101,38 +107,77 @@ final class ScrollCoordinator {
         frames = []
         consecutiveStillFrames = 0
 
-        // 自动滚动决策（ADR-027）：设置开 + 辅助功能授权；未授权弹一次引导后降级手动
-        autoScroll = false
-        if settings.settings.capture.scrollAutoScroll {
-            if AutoScroller.isTrusted() {
-                autoScroll = true
-            } else {
-                let alert = NSAlert()
-                alert.messageText = "开启自动滚动需要辅助功能权限"
-                alert.informativeText = "授权后 CaptureKit 会自动滚动页面（到底自动完成）；不授权也可以手动滚动。"
-                alert.alertStyle = .informational
-                alert.addButton(withTitle: "打开系统设置")
-                alert.addButton(withTitle: "手动滚动")
-                if alert.runModal() == .alertFirstButtonReturn {
-                    AutoScroller.openAccessibilitySettings()
-                }
-            }
-        }
+        // 自动滚动 / 鼠标滚动决策（ADR-002/027）：依赖辅助功能权限。
+        // 不再弹模态授权框打断流程；无权限时禁用开关并在控制条提示，手动滚动始终可用。
+        let accessibilityAvailable = AutoScroller.isTrusted()
+        autoScroll = accessibilityAvailable && settings.settings.capture.scrollAutoScroll
 
         let panel = ScrollCapturePanel()
         panel.onFinish = { [weak self] in self?.finish() }
         panel.onCancel = { [weak self] in self?.cancel() }
+        panel.onAutoScrollToggle = { [weak self] on in self?.setAutoScroll(on) }
+        panel.setAutoScrollAvailable(accessibilityAvailable)
+        panel.setAutoScroll(autoScroll)
         self.panel = panel
-        panel.setHint(autoScroll ? "自动滚动中… 也可手动滚动 · 到底自动完成" : "在选区内手动滚动页面")
+        if accessibilityAvailable {
+            panel.setHint(autoScroll
+                ? "自动滚动中… 也可手动滚动 · 完成后点「结束并保存」"
+                : "在选区内手动滚动，或把鼠标移到选区下边缘滚动")
+        } else {
+            panel.setHint("手动滚动中 · 自动/鼠标滚动需「辅助功能」权限（点「自动滚动」授权）")
+        }
+        panel.update(frameCount: 0)
         panel.show(near: rect)
+
+        // 选区蓝色边框：提示滚动范围
+        let border = RecordingRegionBorderPanel(region: rect, color: .systemBlue)
+        border.show()
+        regionBorder = border
 
         captureTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.captureOneFrame()
             }
         }
+        // 鼠标驱动滚动：高频检测鼠标相对选区边缘的位置
+        edgeScrollTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.driveEdgeScroll()
+            }
+        }
         captureOneFrame()
         Log.capture.info("Scroll capture started (\(Int(rect.width))×\(Int(rect.height)), auto=\(self.autoScroll))")
+    }
+
+    /// 自动滚动开关：无辅助功能权限时引导授权并回退为手动。
+    private func setAutoScroll(_ on: Bool) {
+        guard on else {
+            autoScroll = false
+            panel?.setAutoScroll(false)
+            if AutoScroller.isTrusted() {
+                panel?.setHint("在选区内手动滚动，或把鼠标移到选区下边缘滚动")
+            }
+            return
+        }
+        guard AutoScroller.isTrusted() else {
+            panel?.setAutoScroll(false)
+            panel?.setHint("自动/鼠标滚动需「辅助功能」权限：已打开系统设置，授权后重新勾选")
+            AutoScroller.openAccessibilitySettings()
+            return
+        }
+        autoScroll = true
+        panel?.setAutoScroll(true)
+        panel?.setHint("自动滚动中… 也可手动滚动 · 完成后点「结束并保存」")
+    }
+
+    /// 鼠标驱动滚动（需辅助功能权限）：鼠标在选区内靠近下边缘 → 向下滚；上边缘 → 向上滚。
+    private func driveEdgeScroll() {
+        guard state == .capturing, let rect = regionRect else { return }
+        // 自动滚动已接管时不叠加鼠标滚动
+        guard !autoScroll, AutoScroller.isTrusted() else { return }
+        let plan = ScrollEdgeDriver.plan(mouse: NSEvent.mouseLocation, region: rect)
+        guard plan.pixels.magnitude >= 1 else { return }
+        AutoScroller.postScrollDown(pixels: plan.pixels, atAppKitPoint: plan.location)
     }
 
     private func captureOneFrame() {
@@ -175,15 +220,10 @@ final class ScrollCoordinator {
         }
     }
 
-    /// 未滚动帧处理：自动模式下连续 2 帧 → 判定到底，自动完成。
+    /// 未滚动帧处理：跳过（钉钉行为：是否到底由用户判断，手动「结束并保存」）。
     private func handleStillFrame() {
         consecutiveStillFrames += 1
-        if autoScroll, consecutiveStillFrames >= 2 {
-            Log.capture.info("Scroll reached bottom, auto-finishing")
-            finish()
-        } else {
-            panel?.update(frameCount: frames.count)
-        }
+        panel?.update(frameCount: frames.count)
     }
 
     // MARK: - 完成 / 取消
@@ -192,8 +232,12 @@ final class ScrollCoordinator {
         guard state == .capturing else { return }
         captureTimer?.invalidate()
         captureTimer = nil
+        edgeScrollTimer?.invalidate()
+        edgeScrollTimer = nil
         panel?.dismiss()
         panel = nil
+        regionBorder?.hide()
+        regionBorder = nil
         state = .stitching
 
         let captured = frames
@@ -222,8 +266,12 @@ final class ScrollCoordinator {
     func cancel() {
         captureTimer?.invalidate()
         captureTimer = nil
+        edgeScrollTimer?.invalidate()
+        edgeScrollTimer = nil
         panel?.dismiss()
         panel = nil
+        regionBorder?.hide()
+        regionBorder = nil
         frames = []
         regionRect = nil
         state = .cancelled

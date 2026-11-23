@@ -323,12 +323,13 @@ final class AppEnvironment {
         scrollCoordinator.errorHandler = { [weak self] error in
             self?.presentError(error)
         }
+        // 长截图结果（钉钉行为）：手动「结束并保存」→ 保存面板；不自动进编辑器（可从历史进入编辑）
         scrollCoordinator.onStitched = { [weak self] image in
             guard let self else { return }
-            self.editorCoordinator.edit(image: image)
             if let historyService = self.historyService {
                 Task { await historyService.recordScreenshot(image: image, source: "scroll") }
             }
+            SavePanelPresenter.presentPNGPanel(for: image)
         }
 
         recordingCoordinator.onRecordingCompleted = { [weak self] url, mode in

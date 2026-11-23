@@ -88,6 +88,9 @@ final class OverlaySelectionModel {
     /// 当前捕获意图（模式胶囊；仅截图意图显示标注工具栏）
     var captureIntent: CaptureIntent = .screenshot
 
+    /// 长截图待开始：选区中央显示 ▶，点击才开始滚动采集（钉钉行为）
+    var isScrollPending = false
+
     /// 当前绘制工具；nil = 选择（拖动 = 移动选区/标注，与钉钉一致）
     var activeTool: AnnotationType?
 
