@@ -1753,3 +1753,35 @@ CaptureKit/
 - tag 必须以 `v` 开头；未打 tag 的 push 永远只构建测试、不发布。
 
 运维操作手册见 `docs/releasing.md`（密钥生成/Secret 配置/Pages 开启/首次发布验收）。
+
+
+---
+
+# 23. macOS TCC 权限与应用身份稳定性
+
+> 背景：v0.1.2 用户实测「授权后仍反复弹屏幕录制提示」。机制级实验（designated requirement 对比，ADR-030）确证根因为 ad-hoc 签名，本节固化身份稳定性约束与发布验收。
+
+## 23.1 约束
+
+- Bundle ID 固定：`com.wanghao.capturekit`，Debug/Release/CI 一致，不允许任何构建环境改动。
+- 发布安装包必须用固定证书（`CaptureKit Developer`，ADR-030）签名；**禁止 ad-hoc 签名的版本对外发布**——ad-hoc 的 designated requirement 绑定单次构建的 cdhash，TCC 视每个构建为新应用。
+- 不允许在业务流程中重置 TCC、跳过权限检查或吞掉捕获错误。
+- 权限检查以 `CGPreflightScreenCaptureAccess` 实时查询为准（无缓存、无绕过）；提示文案必须包含「授权后需重启应用生效」（macOS 要求权限变更后重启才生效）。
+
+## 23.2 机制实验记录（2026-11-23，`codesign -d -r-`）
+
+| 签名 | DR | TCC 语义 |
+| --- | --- | --- |
+| ad-hoc（v0.1.2 实包） | `cdhash H"bbeb00ce…"` | 绑定该构建二进制；任何新构建 = 新应用 → 授权失效 |
+| 证书（v0.1.4 起，两个不同构建） | `identifier "com.wanghao.capturekit" and certificate root = H"d32d7db1…"`（两者完全一致） | 同证书所有版本 = 同一应用 → 授权保留 |
+
+推论：ad-hoc 时代的每次发版必然丢授权；v0.1.4 起跨版本保留（待发布验收确认）。
+
+## 23.3 发布验收（每次发布必测）
+
+1. 首次授权成功。
+2. 重启应用后授权保留。
+3. 新版本覆盖安装后授权保留（核心项，验证签名身份未漂移）。
+4. 连续截图不重复提示授权。
+5. 主动撤销权限后能正确检测并提示。
+6. 权限变更后提示文案包含「重启应用生效」。

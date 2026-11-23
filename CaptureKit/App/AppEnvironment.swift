@@ -455,7 +455,7 @@ final class AppEnvironment {
         alert.alertStyle = .warning
 
         if case .permissionDenied = error {
-            alert.informativeText = "请在「系统设置 → 隐私与安全性 → 屏幕录制」中允许 CaptureKit，然后重新触发截图。"
+            alert.informativeText = "请在「系统设置 → 隐私与安全性 → 屏幕与系统音频录制」中允许 CaptureKit，然后完全退出并重新打开 CaptureKit（新授权需重启应用生效），再触发截图。"
             alert.addButton(withTitle: "打开系统设置")
             alert.addButton(withTitle: "取消")
             if alert.runModal() == .alertFirstButtonReturn {

@@ -378,3 +378,7 @@ Phase 5 批次 2 已完成：QuickAccessPanel（⌘⇧V：搜索/键盘导航/En
 本地未能完整预演 `build-release.sh`：这台机器的 xcodebuild 再次卡在 `CreateBuildDescription`（CI 上同一命令一直正常），所以改为跳过构建步骤、只对签名段做验证。CI 全流程以 v0.1.4 的发布运行为准，发版后需下载已发布的 DMG 核对 `Authority`。
 
 未经证实、需实机确认：自签名证书能否让屏幕录制授权保留下来；「ad-hoc 指纹变化导致授权留不住」这一根因推断。
+
+## 排查结案：屏幕录制授权反复提示（DESIGN.md §23 / ADR-030）
+
+排查清单逐项结论：权限检查无缓存、每次实时 preflight；CGRequest 仅在未授权时调用；Bundle ID 全构建一致；**根因为 ad-hoc 签名的 DR 绑定单次构建 cdhash**（`codesign -d -r-` 对比实验，v0.1.2 实包验证）；权限生效需重启应用。修复：v0.1.4 固定证书（已发布并核对 Authority）+ 权限提示文案（面板新名称「屏幕与系统音频录制」+ 重启生效说明）。用户侧操作：`tccutil reset ScreenCapture com.wanghao.capturekit` → 装 v0.1.4 → 授权 → 重启。
