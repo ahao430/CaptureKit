@@ -1,0 +1,309 @@
+# 开发进度
+
+> 状态：Todo / In Progress / Blocked / Done
+> 规则：前一阶段核心验收未通过不得进入下一阶段（plan.md §12.4）。
+
+## 阶段总览
+
+| Phase | 名称 | 状态 |
+| --- | --- | --- |
+| 0 | 技术验证 | **Done（待人工多屏验收）** |
+| 1 | 截图 MVP | **Done（待人工验收）** |
+| 2 | Screenshot Editor | **Done（全部工具，待人工验收）** |
+| 3 | Scroll Capture | **Done（手动滚动基础版：匹配/拼接/预览，待人工验收）** |
+| 4 | Recording | **Done（批次 1 核心管线；批次 2 预览编辑器+窗口录制，待人工验收）** |
+| 5 | History + Clipboard | **Done（批次 1 数据层+采集+History 窗口；批次 2 QuickAccess/网格/存储页，待人工验收）** |
+| 6 | 完善与增强 | **基本完成（OCR/批量删除/系统音频/麦克风/退出清空/效果缓存/点击效果/速度调节/孤儿自愈 Done；删帧编辑延后）** |
+
+## Phase 0 任务明细（design.md §20）
+
+| 任务 | 内容 | 状态 |
+| --- | --- | --- |
+| Task 1 | 项目初始化（xcodegen、目录、OSLog、Info.plist、部署版本 14.0） | Done |
+| Task 2 | 菜单栏常驻 + 隐藏 Dock（可切换） | Done |
+| Task 3 | 全局快捷键（Carbon 注册/注销/冲突检测/配置模型） | Done |
+| Task 4 | 屏幕录制权限（preflight/request/系统设置引导） | Done |
+| Task 5 | ScreenCaptureKit（全屏/窗口/区域 + 剪贴板复制 + 保存） | Done |
+| Task 6 | 多显示器 Overlay 选区 + 坐标转换（单测覆盖） | Done |
+| Task 7 | Phase 0 验证报告 | Done（自动化部分） |
+
+## 验证记录
+
+- 2026-11-23：Debug 构建通过；27/27 单元测试通过；启动冒烟（进程存活 4s）通过。（Phase 0）
+- 2026-11-23：Phase 1 完成后构建通过；38/38 单元测试通过；启动冒烟通过。
+- 2026-11-23：Phase 2 完成后构建通过；62/62 单元测试通过（新增标注几何 12、命令 5、视口 5、渲染 2）；启动冒烟通过。
+- 2026-11-23：Phase 2 扩展（马赛克/模糊/编号/裁剪/关闭提醒）构建通过；73/73 单元测试通过（新增 11：新几何、比例约束、裁剪命令、导出状态）；启动冒烟通过。
+- 2026-11-23：Phase 4 批次 1（录制核心管线）构建通过；85/85 单元测试通过（新增 12：暂停时间轴、区域→帧像素坐标、GIF/MP4 编码器真实文件烟测、录制设置兼容解码）；启动冒烟通过。API 编译期验证：`SCStreamConfiguration.clipBounds` 与 `CGImage(cvpixelBuffer:)` 在 MacOSX26.5 SDK 不可用 → 采用 ADR-015/CIImage 替代方案。
+- 2026-11-23：Phase 5 批次 1（SQLite 数据层 + 剪贴板采集 + History 窗口）构建通过；110/110 单元测试通过（新增 25：SQLite/仓库 CRUD·分类·搜索·清理·哈希 17、剪贴板分类·敏感检测 8）；启动冒烟通过。修复一处模型缺陷：ContentItem 行映射未还原 updated_at 列（由 touch 断言暴露）。
+- 2026-11-23：Phase 5 批次 2（QuickAccessPanel ⌘⇧V、History 网格视图、存储设置页）构建通过；111/111 单元测试通过（新增 quickAccess 默认快捷键与 stableID 唯一性）；启动冒烟通过。
+- 2026-11-23：Phase 4 批次 2（录制预览编辑器：播放/双把手裁剪/mp4·GIF 导出；窗口录制）构建通过；113/113 单元测试通过（新增 mp4 裁剪导出与 mp4→GIF 转换真实文件烟测）；启动冒烟通过。
+- 2026-11-23：Phase 6 首批（OCR + 批量删除）构建通过；117/117 单元测试通过（新增 4：渲染文本→Vision 真实识别、空白图零识别、OCR 设置解码）；启动冒烟通过。
+- 2026-11-23：Phase 6 第二批（系统音频录制、退出清空、马赛克/模糊渲染缓存）构建通过；118/118 单元测试通过（mp4 导出新增音轨断言、效果缓存 key/命中测试）。AVFoundation 约束确认：AVAssetWriter input 必须在 startWriting 前添加 → 音频轨在 VideoWriter init 按 SCK 约定格式（48kHz Float32 stereo）预建；`SCStreamOutputType.microphone` 在本 SDK 已存在。
+- 2026-11-23：Phase 6 第三批（点击高亮、导出速度调节、孤儿条目自愈）构建通过；127/127 单元测试通过（新增 9：点击坐标换算与像素绘制、2× 导出时长减半、GIF 延迟缩放、极端速度钳制、孤儿自愈三类条目）。重要发现：`AVMutableVideoComposition(propertiesOf:)` 同步初始化存在偶发 -11841 竞态 → GIF 导出改用 TrackOutput 像素缩放（ADR-023）；URL(":memory:") 经 `.path` 破坏 sqlite 内存库标记 → 测试库改临时文件。
+- 2026-11-23：Phase 6 第四批（麦克风采集）构建通过；127/127 单元测试通过。API 可用性验证：`SCStreamConfiguration.captureMicrophone` 与 `SCStreamOutputType.microphone` 需 **macOS 15.0+**（部署目标 14 下 `#available` 门控）→ ADR-025。删帧编辑按 P1 延后。
+- 2026-11-23：Phase 3（滚动截图基础版：手动滚动 + 帧匹配拼接）构建通过；135/135 单元测试通过（新增 8：合成页面位移恢复、拼接还原、重复帧去重、低置信降级、单帧直通、高度上限）。修复拼接器偏移累计 bug（`offset == totalHeight` 条件错误 → max 公式重写，由拼接还原测试暴露）。
+- 2026-11-23：性能打磨（缩略图异步加载 + NSCache）构建通过；139/139 单元测试通过（新增 4：缓存命中同一实例、缺失文件/nil 路径/损坏数据返回 nil）。
+- 2026-11-23：Phase 3 补全（自动滚动）构建通过；141/141 单元测试通过（新增 2：AppKit→CG 坐标 y 翻转、滚轮事件构造与方向/位置字段）。API 校准：`CGEvent(scrollWheelEvent2Source:...)`（wheel1 Int32）；`scrollWheelEventIsContinuous` 字段在本 SDK 不可用 → ADR-027。
+- 2026-11-23：删帧编辑（GIF 胶片条）构建通过；151/151 单元测试通过（新增 10：区间合并/半开命中/切换增删/裁剪/编解码往返、导出跳帧集成烟测）。
+- 待人工：`docs/phase-0-validation.md` §4 清单 + Phase 1/2/3/4/5/6 人工验收清单。
+
+## Phase 6 任务明细（进行中）
+
+| 任务 | 状态 |
+| --- | --- |
+| OCR 文字识别（Vision 本地：编辑器「识别文字」按钮 + 结果面板复制；截图/剪贴板图片入库后台识别写入搜索索引；设置可关，默认开） | Done |
+| 历史批量删除（列表/网格选择模式 + 全选 + 确认批量删除） | Done |
+| Pin 收藏增强（已有 Pin + 豁免清理） | Done（Phase 5 已含） |
+| 录制系统音频（SCStream capturesAudio + 排除自身进程音频；AAC 音轨；暂停联动；设置开关默认关；单测验证音轨落盘） | Done |
+| 退出时清空全部历史（设置开关，默认关；Pin 同删已在 footer 说明） | Done |
+| 马赛克/模糊渲染缓存（NSCache，key=标注+区域+参数+底图身份；裁剪自动失效） | Done |
+| 鼠标点击高亮（全局鼠标监听无需辅助权限；帧内扩散圆环合成；区域/全屏坐标换算单测；设置开关默认关） | Done |
+| 导出速度调节（0.5×/1×/1.5×/2×：mp4 AVMutableComposition 重定时（重编码）、GIF 帧延迟缩放；单测验证时长减半与延迟缩放） | Done |
+| 孤儿条目自愈（启动扫描引用文件丢失的条目并清理；单测覆盖真实文件/丢失/纯文本三类） | Done |
+| 麦克风采集（SCStream .microphone，macOS 15+ 门控；TCC 授权拒绝降级；与系统音频共用 AAC 音轨 + PTS 单调保护；设置开关默认关） | Done |
+| 缩略图异步加载（ThumbnailStore：后台解码 + NSCache，History 列表/网格与 QuickAccess 复用 AsyncThumbnailView，列表滚动不再阻塞主线程） | Done |
+| **删帧编辑**（GIF 胶片条 20 格点选排除 + 区间合并纯函数 + 导出跳帧集成；导出按钮按有效时长禁用） | Done |
+| 崩溃恢复增强 | Done（孤儿自愈已覆盖核心场景） |
+
+## Phase 6 人工验收清单
+
+1. 编辑器 → 工具栏「文字识别」按钮 → 含文字的截图识别出结果 → 「复制全部」。
+2. 设置 → 通用 → 关闭 OCR → 新截图不再写搜索索引（历史搜索图片内文字不再命中）。
+3. 开启 OCR 时截图一张含文字的图 → ⌘⇧H 搜索图中关键词 → 命中该截图条目。
+4. History → 搜索栏右侧 ⭕ 进入选择模式 → 点选多项 → 「删除所选」→ 确认 → 条目与文件消失。
+5. 设置 → 录制 → 开启「录制系统音频」→ 录一段带声音的内容（播放音乐）→ 停止 → 预览编辑器/QuickTime 回放有声音；暂停段静音且时间连续。
+6. 设置 → 剪贴板 → 开启「退出时清空全部历史」→ 退出 app → 重新打开历史为空；关闭该选项时退出不清空。
+7. 设置 → 录制 → 开启「鼠标点击高亮」→ 录制中点击几下 → 回放可见蓝色扩散圆环，位置与点击处一致。
+8. 预览编辑器导出选 2× → mp4 时长减半；GIF 播放明显变快。
+9. 手动删除 Content 目录里某条目引用的文件 → 重启 app → 该条目被自动清理。
+10. 设置 → 录制 → 开启「录制麦克风」（macOS 15+）→ 首次录制弹麦克风授权 → 允许 → 录制后回放有人声；拒绝授权 → 录制正常完成但无人声。
+11. 同时开启系统音频 + 麦克风录制 → 回放两个声源都存在（混音质量人工评估）。
+
+## Phase 1 任务明细（plan.md §9）
+
+| 任务 | 状态 |
+| --- | --- |
+| MenuBar Popover（截图主入口 + 快捷操作列表，SwiftUI） | Done |
+| 全局快捷键（Phase 0 已实现，含自定义录制 UI 与即时生效） | Done |
+| Capture Overlay（多屏、暗化、选区） | Done |
+| 区域截图 / 全屏截图 / 窗口截图（单击选中、双击捕获） | Done |
+| 窗口吸附（悬停高亮、拖拽边缘吸附 6pt、单击选中窗口为选区） | Done |
+| 选区调整（8 控制点、内部拖动、空格+拖动、方向键 1px / Shift 10px） | Done |
+| 放大镜（4x 放大、像素坐标、创建/调整时跟随鼠标） | Done |
+| 复制 / 保存（PNG，NSSavePanel） | Done |
+| 延时截图（设置 1–10s，倒计时面板可取消） | Done |
+| 基础 Settings（通用/截图/快捷键，登录启动、Dock 切换） | Done |
+| 显示器排列变化自动取消 Overlay | Done |
+
+## Phase 1 人工验收清单
+
+1. 菜单栏左键 → Popover 显示；点「截图」→ Popover 关闭 → Overlay 出现；右键 → NSMenu。
+2. 无选区时鼠标划过窗口 → 蓝色高亮；单击窗口 → 整窗作为选区；双击 → 直接捕获该窗口。
+3. 拖拽选区时放大镜跟随鼠标（4x + 坐标）；松开后控制点可拖拽调整，方向键微调（Shift = 10px）。
+4. 拖拽边缘接近其它窗口边缘（<6pt）→ 自动吸附。
+5. 设置 → 快捷键 → 点击录制 → 按 ⌘⇧S → 立即生效；冲突时显示橙色提示。
+6. 延时截图：倒计时浮条 → 可取消；倒计时归零自动进入区域截图。
+
+## Phase 2 任务明细（plan.md §9）
+
+| 任务 | 状态 |
+| --- | --- |
+| 编辑器窗口（AppKit 窗口 + SwiftUI 工具栏/Inspector） | Done |
+| Canvas（缩放 0.1–8x 锚定缩放、平移、Space 拖动、⌘滚轮/捏合缩放） | Done |
+| Annotation 数据模型（值类型几何 + bbox/平移/缩放/命中纯函数，单测覆盖） | Done |
+| 工具：选择/箭头/矩形/椭圆/文字/画笔（快捷键 V/A/R/O/T/P） | Done |
+| 马赛克（像素化，粒度可调）/ 模糊（CIGaussianBlur，强度可调） | Done |
+| 编号标注（自动递增取号，圆形徽标 + 数字） | Done |
+| 裁剪工具（非破坏性 cropRect、比例约束 自由/1:1/4:3/16:9、Enter 应用/ESC 取消、重置裁剪、可撤销） | Done |
+| 标注选中/移动/8 控制点 resize/Delete 删除/双击编辑文字 | Done |
+| 动态 Inspector（按对象类型显示：色板/线宽/字号/填充/粒度/强度/裁剪比例） | Done |
+| Undo/Redo（Command Pattern，add/remove/update/setCrop；slider 拖完才入栈） | Done |
+| 非破坏性导出（AnnotationRenderer 画布与导出共用；复制/保存一致） | Done |
+| 关闭未导出提醒（有标注/裁剪未复制保存时弹确认） | Done |
+| Overlay 工具栏「编辑」按钮 + 截图后自动进编辑器（设置可关，默认开） | Done |
+
+## Phase 2 人工验收清单
+
+1. 截图（Enter 或工具栏「编辑」）→ 编辑器窗口自动打开并显示截图。
+2. 按箭头工具（A）拖一条箭头 → 自动切回选择（V）并选中；拖动移动、控制点调整大小、Delete 删除。
+3. 文字工具（T）点击画布 → 输入文字 → 回车；双击已有文字重新编辑。
+4. 马赛克（M）/模糊（B）拖矩形 → 敏感信息被遮盖；Inspector 调粒度/强度即时变化。
+5. 编号（N）连续点击多处 → 自动 1、2、3 递增；可拖动/改颜色大小。
+6. 裁剪（C）：Inspector 选 1:1 → 拖出正方形裁剪框 → Enter 应用；⌘Z 撤销恢复；「重置裁剪」回到原图。
+7. 底部 Inspector：按选中对象类型显示对应属性；修改即时生效。
+8. ⌘Z/⌘⇧Z 撤销重做（含裁剪）；slider 拖动一次只回退一步。
+9. 有未导出修改时关闭窗口 → 弹出确认；⌘C/⌘S 后关闭不提示。
+10. ⌘C 复制合成图 → 粘贴包含标注与裁剪；原始截图数据未被修改。
+
+## 已实现文件索引
+
+```
+CaptureKit/
+├── App/
+│   ├── CaptureKitApp.swift            @main 入口（纯 AppKit）
+│   ├── AppDelegate.swift              生命周期回调
+│   ├── AppEnvironment.swift           依赖装配 + 快捷键绑定 + 错误/完成呈现
+│   └── AppDockIconService.swift       Dock 图标策略
+├── Core/
+│   ├── Errors/CaptureKitError.swift
+│   ├── Models/CaptureSession.swift    CaptureMode/State/DeliveryAction
+│   ├── Models/RecordingSession.swift  RecordingMode/State/Settings + PauseTimeline
+│   └── Utils/ScreenGeometry.swift     坐标转换 + 控制点/吸附/比例约束（纯函数可测）
+├── Infrastructure/
+│   ├── Logging/Log.swift              OSLog 分类
+│   ├── Permissions/ScreenCapturePermission.swift
+│   ├── Hotkeys/HotkeyDescriptor.swift 模型 + 冲突检测 + NSEvent 转换
+│   ├── Hotkeys/CarbonHotkeyCenter.swift
+│   ├── ScreenCapture/ScreenCaptureEngine.swift   静态捕获
+│   ├── ScreenCapture/ScreenRecorder.swift        SCStream 流式捕获
+│   ├── VideoProcessing/VideoWriter.swift         AVAssetWriter mp4
+│   ├── VideoProcessing/GIFEncoder.swift          ImageIO GIF 流式
+│   └── VideoProcessing/PixelBufferCropper.swift  帧裁剪（区域录制，ADR-015）
+├── Application/
+│   ├── Capture/CaptureCoordinator.swift     截图业务（权限→Overlay→捕获→交付→延时）
+│   ├── Capture/ClipboardWriter.swift       PNG+TIFF 写入
+│   ├── Recording/RecordingCoordinator.swift 录制业务（状态机+帧管线+HUD）
+│   └── Settings/AppSettings.swift          Codable 配置 + UserDefaults 存储
+└── UI/
+    ├── MenuBar/MenuBarManager.swift       左键 Popover + 右键 NSMenu
+    ├── MenuBar/MenuBarPopoverView.swift   Popover 内容（SwiftUI）
+    ├── CaptureOverlay/                    Model/Window/View/Controller/Toolbar
+    ├── DelayedCapture/DelayedCapturePanel.swift
+    ├── CaptureResult/CaptureResultToast.swift
+    ├── RecordingHUD/RecordingHUDPanel.swift   录制控制条
+    ├── ScreenshotEditor/                  EditorWindowController+Coordinator
+    │                                      AnnotationCanvasView（AppKit Canvas）
+    │                                      EditorContentView + AnnotationInspectorView
+    └── Settings/SettingsWindowController.swift
+        Settings/SettingsRootView.swift（通用/截图/录制/快捷键）
+        Settings/HotkeyRecorderView.swift
+```
+
+## Phase 2 待办
+
+（全部完成；后续增强见 Phase 6）
+
+## Phase 3 任务明细（plan.md §9 基础版）
+
+| 任务 | 状态 |
+| --- | --- |
+| 滚动区域选择（复用 Overlay 区域选择） | Done |
+| 采集循环（0.35s 定时抓帧，重复帧自动跳过，上限 120 帧，单帧失败不中断） | Done |
+| 帧间重叠匹配（灰度降采样 128×256 + 逐候选位移平均绝对差，置信度输出） | Done |
+| 图片拼接（后帧新增区追加；低置信段整帧追加防内容丢失；高度上限 16000px） | Done |
+| 采集 HUD（帧数计数/完成⏎/取消⎋，可拖动） | Done |
+| 结果交付（拼接图 → 编辑器打开 + 历史入库） | Done |
+| 合成页面单测（位移恢复 ±3px、拼接还原、重复帧去重、低置信降级、单帧直通、高度上限） | Done |
+| **自动滚动**（CGEvent 滚轮注入 + 辅助功能权限引导与手动降级 + 到底自动完成，ADR-027；设置默认开） | Done |
+| 人工调整拼接结果 | 延后（结果直接进编辑器，可用裁剪/标注工具调整） |
+
+## Phase 3 人工验收清单（含自动滚动）
+
+1. Popover/右键菜单「滚动截图（长图）」→ 选区 → 首次弹辅助功能授权引导。
+2. 授权后重新触发 → HUD「自动滚动中…」→ 页面自动滚动、到底自动完成 → 编辑器打开拼接长图。
+3. 未授权选「手动滚动」→ 手动匀速滚动 →「完成」→ 拼接结果正常。
+4. 长图内容应连续无重复断层；历史出现该长图条目。
+5. 选区后不滚动直接「完成」→ 输出单帧等大长图。
+6. 设置 → 截图 → 关闭「滚动截图自动滚动」→ 不再注入滚动事件。
+7. 滚动过快或页面含动画 → 可能出现重复/断层（评估拼接质量）。
+
+## Phase 4 任务明细（plan.md §9；批次 1 = 核心录制管线）
+
+| 任务 | 状态 |
+| --- | --- |
+| ScreenCaptureKit 录制（SCStream + 帧回调，排除自身 app） | Done |
+| 区域录制（Overlay 录制选区模式 → 整屏流 + PixelBufferCropper 逐帧裁剪，ADR-015） | Done |
+| 全屏录制（鼠标所在屏） | Done |
+| Recording HUD（REC/时间/暂停/停止/取消，可拖动，不入镜） | Done |
+| 暂停和继续（PauseTimeline 时间轴：丢帧 + PTS 重写，单测） | Done |
+| 停止（AVAssetWriter finishWriting 流式落盘） | Done |
+| 视频编码（H.264 mp4，背压丢帧策略，单测：合成帧 → 可播放 mp4） | Done |
+| GIF 编码（ImageIO 流式 + 帧率节流 + 宽度上限，单测：帧数/延迟/尺寸） | Done |
+| 录制完成提示（Finder 定位） | Done |
+| 全局快捷键 ⇧⌘R 区域视频录制（可自定义） | Done |
+| 录制设置页（FPS 5–60 / 鼠标指针 / GIF 宽度 480/720/1080） | Done |
+
+Phase 4 批次 2 已完成：录制预览编辑器（AVPlayer 播放/暂停/进度拖动、双把手时间轴裁剪与预览循环、导出 mp4（原始 passthrough/720p/1080p/480p）或 GIF（帧率 10/15/20 + 宽度上限，复用 GIFEncoder 流式管线）、导出进度、Finder 定位；录制完成自动打开（设置可关，改为 Finder 提示））、窗口录制（Overlay 双击选窗 → desktopIndependentWindow）。
+
+Phase 4 遗留（Phase 6）：音频采集（麦克风/系统音频）、录制中鼠标点击效果、速度调节、删帧。
+
+## Phase 4 人工验收清单（批次 1 + 2）
+
+1. ⇧⌘R 或 Popover「录制」→ Overlay 提示"拖拽选择录制区域" → 拖框 → Enter → 出现 HUD。
+2. HUD 显示 ● REC + 计时；**拖动 HUD 后回放确认 HUD 不在视频中**（ADR-017 验证点）。
+3. 暂停 → 时间停走（点变橙）；继续 → 恢复；回放确认暂停段被移除（时间连续）。
+4. 停止 → **预览编辑器自动打开**（默认）：空格播放/暂停；拖动双把手调整裁剪区间（播放头循环于裁剪区间）。
+5. 导出 mp4（原始尺寸 passthrough，仅裁剪不重编码）→ QuickTime 播放，时长 = 裁剪区间。
+6. 导出 GIF（选 480p + 10FPS）→ 文件明显变小、可播放、帧率正确。
+7. 右键菜单「录制 GIF（区域）」→ 停止后直接进编辑器 → 导出 GIF。
+8. 取消 → 确认弹窗 → 半成品文件被删除（Recordings 目录无残留）。
+9. 长录制（≥2 分钟）期间观察活动监视器：内存无持续增长（流式写入验证）。
+10. 窗口录制（右键菜单 → 双击某窗口）：输出仅含该窗口（无桌面背景）。
+11. 全屏录制（右键菜单）：输出尺寸 = 显示器物理像素。
+12. 设置关闭「录制后自动打开预览编辑器」→ 完成后显示 Finder 提示而非编辑器。
+
+## Phase 5 任务明细（批次 1 = 数据层 + 剪贴板采集 + History 窗口）
+
+| 任务 | 状态 |
+| --- | --- |
+| Content Model（ContentType/typed ContentMetadata/ContentQuery） | Done |
+| SQLite 数据库（自研轻量封装：串行队列、WAL、user_version 迁移） | Done |
+| ContentRepository（CRUD/分类查询/搜索/去重哈希查找/超龄超量清理/Pin 豁免） | Done |
+| Content Store（按月分目录、临时文件+原子移动、删除同步清文件） | Done |
+| 缩略图生成（图片 320px / 视频首帧） | Done |
+| Clipboard Monitor（changeCount 0.6s 轮询、启停受设置驱动） | Done |
+| 文本/URL/图片（PNG/TIFF）/文件引用采集（多 representation 记录） | Done |
+| 类型分类（文件>图片>URL>富文本>纯文本，单测覆盖） | Done |
+| 敏感内容过滤（AWS/GitHub/sk-/Bearer/password/私钥/高熵串，默认开） | Done |
+| 内容去重（SHA256：文本规范化/二进制；重复 bump 更新时间） | Done |
+| 恢复到剪贴板（文本/图片/文件 URL/视频引用） | Done |
+| 自动清理（启动+每小时：超龄与超量，Pin 豁免，关联文件同步删除） | Done |
+| 剪贴板隐私设置（默认关闭/暂停/保留量/清理天数/排除应用/敏感过滤） | Done |
+| 截图与录制接入统一历史（哈希去重联动） | Done |
+| History 窗口（分类导航/搜索防抖/缩略图列表/右键复制·Pin·Finder·删除/空状态）+ ⇧⇧⌘H | Done |
+
+Phase 5 批次 2 已完成：QuickAccessPanel（⌘⇧V：搜索/键盘导航/Enter 复制自动关闭/ESC/失焦关闭/屏幕居中，快照式加载 30 条）、History 网格视图（列表/网格切换、双击复制、Pin 角标）、设置存储页（内容/数据库占用、条目数、打开目录、确认后清空全部历史）。
+
+遗留（Phase 6 增强）：退出时清空选项、历史批量删除、GIF 动画预览。
+
+## Phase 5 人工验收清单（批次 1 + 2）
+
+1. ⌘⇧H → 历史窗口打开；默认显示全部；左侧切换分类；搜索栏右侧按钮切换列表/网格。
+2. 截图（⌘⇧A）→ 完成后历史出现截图条目（缩略图 + 尺寸）；录制完成 → 视频/GIF 条目。
+3. 设置 → 剪贴板 → 开启 → 复制一段文本 → 历史出现文本条目（来源 app 显示）。
+4. 复制同一文本两次 → 只有一条记录（去重 bump）。
+5. 复制图片/文件（Finder 中复制文件）→ 各自类型条目正确。
+6. 复制 `AKIA...` 风格密钥 → 不记录（敏感过滤）；设置关闭敏感过滤后可记录。
+7. 暂停监听 → 复制内容不新增；恢复后新增。
+8. 搜索关键词 → 文本/URL 条目可检索；删除条目 → Content 目录文件同步消失；Pin 条目在自动清理后保留。
+9. 右键 → 复制 → 到其它应用粘贴，内容与原一致（图片不失真）。
+10. 关闭剪贴板历史 → 监控停止，重启 app 后保持关闭（默认隐私）。
+11. **⌘⇧V → 快速面板弹出、自动聚焦搜索**；输入过滤、↑↓ 选择高亮滚动、⏎ 复制选中并自动关闭、⎋ 关闭、点击面板外自动关闭。
+12. 设置 → 存储：显示内容与数据库占用/条目数；「打开存储目录」定位；「清空全部历史」需确认且清空后条目与文件均消失。
+
+## 发布基建任务明细（DESIGN.md §22 / ADR-028/029）
+
+| 任务 | 状态 |
+| --- | --- |
+| Sparkle 2.10.1 SPM 集成（exactVersion 锁定；UpdateCoordinator 包装，AppSettings.update 单一事实源） | Done |
+| EdDSA 密钥对（公钥入 Info.plist；私钥导出 ~/.config/capturekit/，仓库外） | Done |
+| Info.plist 更新配置（SUFeedURL/SUPublicEDKey/24h 间隔/安装需确认/关闭系统剖析） | Done |
+| 设置 → 更新页 + 菜单右键「检查更新…」+ 当前版本显示 | Done |
+| scripts/build-release.sh（Universal 构建 + lipo 断言 + ad-hoc 签名校验 + DMG + ditto zip + Sparkle 嵌入断言） | Done |
+| scripts/make-appcast.sh（官方 generate_appcast 下载缓存 + stdin 密钥 + 签名/URL 自检） | Done |
+| .github/workflows/build.yml（push/PR → 构建 + 全量测试） | Done |
+| .github/workflows/release.yml（v* tag → 三附件自动发布，github.repository 全 owner 无关） | Done |
+| docs/index.html Homepage（GitHub Pages；下载/特性/安装/xattr/故障排除；design 审计） | Done |
+| 文档：README 安装章节、DESIGN.md §22、ADR-028/029、docs/releasing.md | Done |
+
+验证记录：Sparkle 集成构建通过（框架自动嵌入 app/Contents/Frameworks）；**159/159 单测通过**（新增 UpdateConfigTests 8 项：feed URL/公钥 32 字节/间隔/确认安装/关闭剖析/默认开/旧配置回退）；本地发布演练通过（lipo 双架构、codesign verify、DMG + zip 产物、appcast EdDSA 签名自检）；Homepage design 审计必修项清零（1440/390 双视口 0 must-fix；1440 与 390 全分辨率截图经视觉复核无重叠；4 项 10px eyebrow 小字继承自骨架基线，按规则保留并报告）。appcast 前缀陷阱已实证修复：generate_appcast 将 --download-url-prefix 视为目录基址，不以 / 结尾会丢弃末段（v0.1.0 tag），脚本内统一补齐。
+
+## 发布基建人工验收清单（首次发布）
+
+1. push main → GitHub Actions build.yml 绿灯（CI 环境 Build + 159 测试）。
+2. 配置 Secret `SPARKLE_PRIVATE_KEY`（docs/releasing.md §0）→ 打 tag v0.1.0 → release.yml 产出三附件 DMG/zip/appcast.xml。
+3. DMG 安装 → 首次 `xattr` → 启动正常、功能与本地一致。
+4. 菜单「检查更新…」→ Sparkle 面板弹出（首个 Release 前会报 feed 404，属预期）。
+5. 发更高版本 → 老版本检出更新 → 确认安装 → 自动重启为新版（若被 Gatekeeper 拦截重跑 xattr，记录到 ADR-029）。
+6. Settings → Pages（main /docs）→ Homepage 可访问且下载按钮指向最新 DMG。
+7. Intel Mac 或 Rosetta 下 DMG 可运行（universal 断言已在 CI 日志）。

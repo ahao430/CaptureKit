@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en" data-zcode-design>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CaptureKit — Capture. Organize. Reuse.</title>
+<meta name="description" content="A lightweight, native menu-bar app for macOS: screenshots, screen recording, GIF, scrolling captures, clipboard history and OCR — everything stays on your Mac.">
+<script>document.documentElement.classList.add('js')</script>
+<style>
+/* ============ Tokens ============ */
+:root {
+  --bg: #F2F2F0;               /* warm silver canvas */
+  --surface: #FAFAF8;          /* card core */
+  --surface-sunk: #EAEAE6;     /* inset core */
+  --fg: #101012;               /* off-black */
+  --muted: #5D5D61;
+  --faint: #636369;            /* 4.7:1 on canvas — caption-safe */
+  --border: rgba(16, 16, 18, 0.06);
+  --border-strong: rgba(16, 16, 18, 0.12);
+  --accent: #0E6E66;           /* capture-teal, text-safe on canvas */
+  --accent-ink: #FFFFFF;
+  --dark-bg: #131316;          /* closing band */
+  --dark-fg: #ECECEA;
+  --dark-muted: #9A9AA0;
+
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  --radius-lg: 28px;
+  --radius-md: 20px;
+  --radius-inner: calc(var(--radius-lg) - 6px); /* concentric with bezel */
+  --radius-pill: 999px;
+
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur: 700ms;
+
+  --sp-section: clamp(88px, 12vw, 152px);
+  --shadow-soft: 0 20px 40px -15px rgba(16, 16, 18, 0.05);
+  --shadow-lift: 0 30px 60px -20px rgba(16, 16, 18, 0.10);
+}
+
+/* ============ Base ============ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 16px;
+  line-height: 1.55;
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--fg); }
+img, svg { display: block; max-width: 100%; }
+:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; border-radius: 4px; }
+
+h1, h2, h3 { font-family: var(--font-display); }
+h2 {
+  font-size: clamp(32px, 4.4vw, 46px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+p { max-width: 65ch; }
+
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--muted); }
+
+/* ============ Ambient mesh ============ */
+.mesh {
+  position: fixed; inset: -20%;
+  background:
+    radial-gradient(38% 34% at 30% 22%, rgba(14, 110, 102, 0.16), transparent 70%),
+    radial-gradient(30% 30% at 78% 12%, rgba(16, 16, 18, 0.05), transparent 70%);
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: 0;
+  animation: mesh-drift 28s var(--ease-spring) infinite alternate;
+}
+@keyframes mesh-drift {
+  from { transform: translate3d(-2%, -1%, 0) scale(1); }
+  to   { transform: translate3d(2%, 2%, 0) scale(1.06); }
+}
+
+/* ============ Floating pill nav ============ */
+.nav {
+  position: fixed; top: 22px; left: 0; right: 0;
+  margin: 0 auto; width: max-content;
+  z-index: 50;
+  display: flex; align-items: center; gap: 26px;
+  padding: 10px 12px 10px 20px;
+  background: rgba(250, 250, 248, 0.72);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft), inset 0 0 0 1px var(--border);
+}
+.nav .wordmark {
+  font-family: var(--font-display);
+  font-weight: 700; font-size: 15px; letter-spacing: -0.01em;
+  text-decoration: none;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 4px;
+}
+.nav .links { display: flex; gap: 20px; }
+.nav .links a {
+  font-size: 13px; font-weight: 500; letter-spacing: 0.02em;
+  text-decoration: none; color: var(--muted);
+  padding: 6px 2px;
+  transition: color var(--dur) var(--ease-spring);
+}
+.nav .links a:hover { color: var(--fg); }
+.nav .cta {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+  text-decoration: none;
+  background: var(--fg); color: var(--bg);
+  padding: 8px 16px; border-radius: var(--radius-pill);
+  transition: transform var(--dur) var(--ease-spring);
+}
+.nav .cta:hover { transform: scale(0.97); }
+@media (max-width: 768px) { .nav .links { display: none; } }
+
+/* ============ Layout helpers ============ */
+.wrap { width: min(1120px, calc(100% - 48px)); margin: 0 auto; position: relative; z-index: 1; }
+section { padding: var(--sp-section) 0; }
+
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.2em;
+  color: var(--accent);
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+/* Scroll entry (html.js gating: without JS everything stays visible) */
+html.js .reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  filter: blur(8px);
+  transition:
+    opacity 900ms var(--ease-spring),
+    transform 900ms var(--ease-spring),
+    filter 900ms var(--ease-spring);
+}
+html.js .reveal.in { opacity: 1; transform: none; filter: none; }
+
+/* ============ Hero ============ */
+.hero {
+  min-height: 100dvh;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 140px 0 64px;
+}
+.hero h1 {
+  font-size: clamp(48px, 7vw, 96px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 0.96;
+  margin: 26px 0 28px;
+  max-width: 12ch;
+}
+.hero .lede {
+  font-size: clamp(17px, 1.6vw, 20px);
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 52ch;
+}
+.hero .actions { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 40px; }
+.hero .meta {
+  margin-top: 26px;
+  font-family: var(--font-mono);
+  font-size: 14px; letter-spacing: 0.02em;
+  color: var(--faint);
+}
+
+/* CTA: button-in-button */
+.cta-primary {
+  display: inline-flex; align-items: center;
+  background: var(--fg); color: var(--bg);
+  text-decoration: none;
+  border-radius: var(--radius-pill);
+  padding: 7px 7px 7px 24px;
+  font-weight: 600; font-size: 15px; letter-spacing: 0.02em;
+  transition: transform var(--dur) var(--ease-spring), background var(--dur) var(--ease-spring);
+}
+.cta-primary .tail {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px;
+  margin-left: 14px;
+  border-radius: 50%;
+  background: rgba(242, 242, 240, 0.16);
+  transition: transform var(--dur) var(--ease-spring);
+}
+.cta-primary:hover .tail { transform: translate(1px, -1px) scale(1.05); }
+.cta-primary:active { transform: scale(0.98); }
+.cta-primary.download { background: var(--accent); color: var(--accent-ink); }
+.cta-primary.download .tail { background: rgba(255, 255, 255, 0.18); }
+
+.cta-ghost {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 14px 24px;
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  font-weight: 500; font-size: 15px; letter-spacing: 0.02em;
+  color: var(--fg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  transition: transform var(--dur) var(--ease-spring);
+}
+.cta-ghost:hover { transform: scale(0.98); }
+
+/* Hero illustration (SVG parts reference tokens via classes: var() is invalid in presentation attributes) */
+.hero-fig { margin-top: 64px; }
+.hero-fig .fig-frame { fill: var(--surface); stroke: var(--border-strong); }
+.hero-fig .fig-ghost { fill: var(--border); }
+.hero-fig .fig-ghost-strong { fill: var(--border-strong); }
+.hero-fig .fig-sel { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+.hero-fig .fig-handles rect { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+.hero-fig .fig-chip { fill: var(--surface); stroke: var(--accent); }
+.hero-fig .fig-chip-text { fill: var(--fg); }
+.hero-fig .fig-lens { fill: var(--surface); stroke: var(--fg); stroke-width: 2; }
+.hero-fig .fig-lens-arm { stroke: var(--fg); stroke-width: 4; stroke-linecap: round; }
+.hero-fig .fig-grid { stroke: var(--border-strong); stroke-width: 1; }
+.hero-fig .fig-cross { stroke: var(--accent); stroke-width: 1.4; }
+.hero-fig .fig-tool { fill: var(--surface); stroke: var(--border-strong); }
+.hero-fig .fig-tool-text { fill: var(--muted); }
+
+/* ============ Shortcut marquee ============ */
+.chips {
+  padding: 0 0 var(--sp-section);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.chips .track {
+  display: flex; gap: 14px; width: max-content;
+  animation: chip-run 36s linear infinite;
+}
+.chips:hover .track { animation-play-state: paused; }
+.chips .track span {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 12.5px; letter-spacing: 0.01em;
+  color: var(--muted);
+  padding: 11px 18px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  white-space: nowrap;
+}
+kbd {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 3px 7px;
+  border-radius: 7px;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--border-strong), 0 1.5px 0 var(--border-strong);
+  color: var(--fg);
+}
+@keyframes chip-run { to { transform: translateX(-50%); } }
+
+/* ============ Section head ============ */
+.head { max-width: 640px; margin-bottom: 56px; }
+.head h2 { margin: 20px 0 16px; }
+.head p { color: var(--muted); font-size: 17px; }
+
+/* ============ Bento (double bezel) ============ */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 18px;
+}
+.card {
+  border-radius: var(--radius-lg);
+  padding: 6px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft), inset 0 0 0 1px var(--border);
+  display: flex;
+}
+.card .core {
+  flex: 1;
+  border-radius: var(--radius-inner);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  padding: 28px 28px 30px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.card .core.sunk { background: var(--surface-sunk); }
+.card h3 { font-size: 21px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.15; }
+.card p { font-size: 14.5px; color: var(--muted); }
+.card .icon { color: var(--fg); margin-bottom: 4px; }
+.card.wide { grid-column: span 4; }
+.card.half { grid-column: span 2; }
+.card.two { grid-column: span 2; }
+.card.three { grid-column: span 3; }
+.card .fact {
+  margin-top: auto;
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.02em;
+  color: var(--faint);
+}
+@media (max-width: 900px) {
+  .card.wide, .card.three { grid-column: span 6; }
+  .card.half, .card.two { grid-column: span 3; }
+}
+@media (max-width: 640px) {
+  .bento { grid-template-columns: 1fr; }
+  .card.wide, .card.half, .card.two, .card.three { grid-column: span 1; }
+}
+
+/* ============ Install steps ============ */
+.steps { display: grid; gap: 18px; counter-reset: step; }
+.step {
+  display: grid; grid-template-columns: 56px 1fr; gap: 22px;
+  padding: 28px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft), inset 0 0 0 1px var(--border);
+}
+.step .no {
+  counter-increment: step;
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  font-family: var(--font-mono); font-weight: 500; font-size: 14px;
+  background: var(--surface-sunk);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.step .no::before { content: counter(step, decimal-leading-zero); }
+.step h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+.step p { font-size: 14.5px; color: var(--muted); }
+
+.terminal {
+  margin-top: 14px;
+  border-radius: 14px;
+  background: var(--dark-bg);
+  color: var(--dark-fg);
+  padding: 16px 18px;
+  display: flex; align-items: center; gap: 14px;
+  max-width: 640px;
+}
+.terminal code {
+  font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.01em;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.terminal .dot { color: #58C77B; flex: none; }
+.terminal button {
+  flex: none;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dark-muted);
+  background: transparent;
+  border: 0; cursor: pointer;
+  padding: 8px 10px; border-radius: 9px;
+  transition: color var(--dur) var(--ease-spring), background var(--dur) var(--ease-spring);
+}
+.terminal button:hover { color: var(--dark-fg); background: rgba(255, 255, 255, 0.08); }
+
+/* ============ Notes / FAQ ============ */
+.notes { display: grid; gap: 18px; }
+.note {
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft), inset 0 0 0 1px var(--border);
+  padding: 26px 28px;
+}
+.note h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.note p, .note li { font-size: 14.5px; color: var(--muted); }
+.note ul { padding-left: 18px; display: grid; gap: 6px; margin-top: 6px; }
+
+/* ============ Closing band ============ */
+.closing {
+  background: var(--dark-bg);
+  color: var(--dark-fg);
+  padding: var(--sp-section) 0;
+  margin-top: var(--sp-section);
+}
+.closing h2 { color: var(--dark-fg); max-width: 16ch; }
+.closing p { color: var(--dark-muted); margin: 18px 0 36px; }
+.closing .eyebrow { background: rgba(255, 255, 255, 0.05); color: var(--dark-fg); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
+.closing .fine {
+  margin-top: 26px; font-family: var(--font-mono); font-size: 12px;
+  color: var(--dark-muted); letter-spacing: 0.02em;
+}
+
+/* ============ Footer ============ */
+footer { background: var(--dark-bg); color: var(--dark-muted); }
+footer .wrap {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 34px 0 44px;
+  display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.02em;
+}
+footer a { color: var(--dark-muted); text-decoration: none; transition: color var(--dur) var(--ease-spring); }
+footer a:hover { color: var(--dark-fg); }
+footer .row { display: flex; gap: 22px; }
+
+/* ============ Small screens ============ */
+@media (max-width: 640px) {
+  /* SVG 内嵌文字在整图缩放后低于可读字号，隐藏（图形本身保留） */
+  .hero-fig .fig-chip-text, .hero-fig .fig-tool-text { display: none; }
+}
+
+/* ============ Reduced motion ============ */
+@media (prefers-reduced-motion: reduce) {
+  .mesh, .chips .track { animation: none; }
+  .reveal { opacity: 1; transform: none; filter: none; transition: none; }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+
+<div class="mesh" aria-hidden="true"></div>
+
+<header>
+  <nav class="nav" aria-label="Primary">
+    <a class="wordmark" href="#top">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+        <path d="M3 8V6a2 2 0 0 1 2-2h2M15 4h2a2 2 0 0 1 2 2v2M19 14v2a2 2 0 0 1-2 2h-2M9 18H5a2 2 0 0 1-2-2v-2" stroke-linecap="round"/>
+        <circle cx="12" cy="12" r="3.2"/>
+      </svg>
+      CaptureKit
+    </a>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="#notes">First launch</a>
+    </div>
+    <a class="cta" href="https://github.com/ahao430/CaptureKit/releases/latest/download/CaptureKit.dmg">Download DMG</a>
+  </nav>
+</header>
+
+<main id="top">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow reveal">Menu-bar utility for macOS</span>
+      <h1 class="reveal">Capture. Organize. Reuse.</h1>
+      <p class="lede reveal">Screenshots, screen recording, GIF, scrolling captures, clipboard history and OCR search — one native menu-bar app. Everything stays on your Mac.</p>
+      <div class="actions reveal">
+        <a class="cta-primary download" href="https://github.com/ahao430/CaptureKit/releases/latest/download/CaptureKit.dmg">
+          Download for macOS
+          <span class="tail" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
+          </span>
+        </a>
+        <a class="cta-ghost" href="https://github.com/ahao430/CaptureKit">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.72.5.1.68-.22.68-.49 0-.24-.01-.88-.01-1.72-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.63.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.7 0 0 .84-.28 2.75 1.05a9.36 9.36 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.4.2 2.44.1 2.7.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.8-4.57 5.06.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.6.69.49A10.17 10.17 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
+          View on GitHub
+        </a>
+      </div>
+      <div class="meta reveal">macOS 14+ &nbsp;·&nbsp; Universal binary (Apple Silicon &amp; Intel) &nbsp;·&nbsp; auto-update via Sparkle</div>
+
+      <!-- Illustration: region-capture overlay, drawn (not a screenshot) -->
+      <figure class="hero-fig reveal" aria-label="Illustration of the region-capture overlay: a selection rectangle with handles, crosshair, magnifier and a dimension readout">
+        <svg viewBox="0 0 1040 420" role="img" aria-label="Illustration of CaptureKit's region-capture overlay with selection handles, magnifier and dimension readout">
+          <!-- desktop hints -->
+          <rect class="fig-frame" x="0" y="0" width="1040" height="420" rx="22"/>
+          <g opacity="0.5">
+            <rect class="fig-ghost-strong" x="46" y="52" width="180" height="12" rx="6"/>
+            <rect class="fig-ghost" x="46" y="80" width="120" height="8" rx="4"/>
+            <rect class="fig-ghost" x="790" y="300" width="204" height="12" rx="6"/>
+            <rect class="fig-ghost" x="860" y="328" width="134" height="8" rx="4"/>
+          </g>
+          <!-- dim mask with window cut -->
+          <path fill="rgba(16,16,18,0.10)" fill-rule="evenodd" d="M0 22a22 22 0 0 1 22-22h996a22 22 0 0 1 22 22v376a22 22 0 0 1-22 22H22a22 22 0 0 1-22-22z
+            M300 120h440v200H300z"/>
+          <!-- selection -->
+          <rect class="fig-sel" x="300" y="120" width="440" height="200"/>
+          <!-- handles -->
+          <g class="fig-handles">
+            <rect x="294" y="114" width="12" height="12" rx="3"/>
+            <rect x="514" y="114" width="12" height="12" rx="3"/>
+            <rect x="734" y="114" width="12" height="12" rx="3"/>
+            <rect x="294" y="254" width="12" height="12" rx="3"/>
+            <rect x="734" y="254" width="12" height="12" rx="3"/>
+            <rect x="294" y="314" width="12" height="12" rx="3"/>
+            <rect x="514" y="314" width="12" height="12" rx="3"/>
+            <rect x="734" y="314" width="12" height="12" rx="3"/>
+          </g>
+          <!-- dimension chip -->
+          <g>
+            <rect class="fig-chip" x="462" y="96" width="116" height="26" rx="13"/>
+            <text class="fig-chip-text" x="520" y="113" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="12.5">1440 × 900</text>
+          </g>
+          <!-- magnifier -->
+          <g transform="translate(360 220)">
+            <circle class="fig-lens" r="46"/>
+            <path class="fig-lens-arm" d="M32 32L54 54"/>
+            <g class="fig-grid">
+              <line x1="-46" y1="-15" x2="46" y2="-15"/><line x1="-46" y1="0" x2="46" y2="0"/><line x1="-46" y1="15" x2="46" y2="15"/>
+              <line x1="-15" y1="-46" x2="-15" y2="46"/><line x1="0" y1="-46" x2="0" y2="46"/><line x1="15" y1="-46" x2="15" y2="46"/>
+            </g>
+            <path class="fig-cross" d="M-46 0H46M0 -46V46"/>
+          </g>
+          <!-- toolbar chips -->
+          <g font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="12.5">
+            <rect class="fig-tool" x="470" y="336" width="100" height="24" rx="12"/>
+            <text class="fig-tool-text" x="520" y="352" text-anchor="middle">⏎ capture</text>
+          </g>
+        </svg>
+      </figure>
+    </div>
+  </section>
+
+  <!-- Shortcut / capability marquee -->
+  <div class="chips reveal" aria-label="Feature and shortcut overview">
+    <div class="track">
+      <span><kbd>⇧⌘A</kbd> Region capture</span>
+      <span><kbd>⇧⌘R</kbd> Record region</span>
+      <span><kbd>⇧⌘H</kbd> Unified history</span>
+      <span><kbd>⇧⌘V</kbd> Quick paste</span>
+      <span>Scrolling capture</span>
+      <span>GIF export</span>
+      <span>Pause &amp; resume recording</span>
+      <span>OCR text search</span>
+      <span>Mosaic &amp; blur</span>
+      <span>Local-first, no uploads</span>
+      <span><kbd>⇧⌘A</kbd> Region capture</span>
+      <span><kbd>⇧⌘R</kbd> Record region</span>
+      <span><kbd>⇧⌘H</kbd> Unified history</span>
+      <span><kbd>⇧⌘V</kbd> Quick paste</span>
+      <span>Scrolling capture</span>
+      <span>GIF export</span>
+      <span>Pause &amp; resume recording</span>
+      <span>OCR text search</span>
+      <span>Mosaic &amp; blur</span>
+      <span>Local-first, no uploads</span>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <section id="features">
+    <div class="wrap">
+      <div class="head reveal">
+        <span class="eyebrow">Features</span>
+        <h2>Capture it once, find it forever.</h2>
+        <p>Every capture lands in one searchable, local history. No accounts, no cloud, no telemetry.</p>
+      </div>
+
+      <div class="bento">
+        <article class="card wide reveal">
+          <div class="core">
+            <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" stroke-linecap="round"/><circle cx="12" cy="12" r="3"/></svg>
+            <h3>Capture any way you need</h3>
+            <p>Region with magnifier and window snapping, fullscreen, or pick a window by click. Delayed captures for menus, and scrolling capture stitches a whole page into one long image — auto-scroll or manual.</p>
+            <div class="fact">region · fullscreen · window · delay 1–10 s · scrolling</div>
+          </div>
+        </article>
+
+        <article class="card half reveal">
+          <div class="core sunk">
+            <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <h3>Annotate before you share</h3>
+            <p>Arrow, text, mosaic, blur, numbering and more. Non-destructive crop, full undo/redo. What you see is exactly what exports.</p>
+            <div class="fact">8 annotation types · crop · ⌘Z / ⌘⇧Z</div>
+          </div>
+        </article>
+
+        <article class="card half reveal">
+          <div class="core">
+            <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none"/></svg>
+            <h3>Record video &amp; GIF</h3>
+            <p>Region, fullscreen or window. The control HUD never appears in the frame. Pause and resume — dead time is removed automatically.</p>
+            <div class="fact">H.264 mp4 · streaming GIF · optional system audio &amp; mic</div>
+          </div>
+        </article>
+
+        <article class="card half reveal">
+          <div class="core sunk">
+            <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 7h18M7 7V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v2M5 7l1 13h12l1-13" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <h3>Trim, speed, ship</h3>
+            <p>After recording: trim with a dual-handle timeline, adjust speed 0.5–2×, remove GIF frames, then export mp4 or GIF.</p>
+            <div class="fact">480p–1080p mp4 · 10–20 fps GIF · frame deletion</div>
+          </div>
+        </article>
+
+        <article class="card two reveal">
+          <div class="core">
+            <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8" stroke-linecap="round"/><path d="M8.5 11h5M11 8.5v5" stroke-linecap="round"/></svg>
+            <h3>Search inside images</h3>
+            <p>On-device OCR indexes text in every screenshot, so history search finds words inside the picture.</p>
+            <div class="fact">Vision framework · zh-Hans + English · fully offline</div>
+          </div>
+        </article>
+
+        <article class="card two reveal">
+          <div class="core sunk">
+            <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 6V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2M4 8h11a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" stroke-linejoin="round"/></svg>
+            <h3>One history</h3>
+            <p>Screenshots, recordings and clipboard items in a single local library — categories, pinning, thumbnails, auto-clean.</p>
+            <div class="fact">SQLite index · list &amp; grid · Finder reveal</div>
+          </div>
+        </article>
+
+        <article class="card two reveal">
+          <div class="core">
+            <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke-linecap="round"/></svg>
+            <h3>Clipboard, opt-in</h3>
+            <p>Clipboard history is off until you turn it on. Sensitive-content filtering and per-app exclusion come standard; quit can wipe everything.</p>
+            <div class="fact">off by default · sensitive filter · clear on quit</div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- Install -->
+  <section id="install">
+    <div class="wrap">
+      <div class="head reveal">
+        <span class="eyebrow">Install</span>
+        <h2>Four steps, about a minute.</h2>
+        <p>CaptureKit is distributed as a DMG from GitHub Releases — no App Store, no installer.</p>
+      </div>
+
+      <div class="steps">
+        <div class="step reveal">
+          <span class="no" aria-hidden="true"></span>
+          <div>
+            <h3>Download the DMG</h3>
+            <p>Always grab the latest from the <a href="https://github.com/ahao430/CaptureKit/releases">GitHub Releases page</a> — the button at the top of this page always points there too.</p>
+          </div>
+        </div>
+        <div class="step reveal">
+          <span class="no" aria-hidden="true"></span>
+          <div>
+            <h3>Drag CaptureKit into Applications</h3>
+            <p>Open the DMG and drag the app onto the Applications shortcut, then eject the DMG.</p>
+          </div>
+        </div>
+        <div class="step reveal">
+          <span class="no" aria-hidden="true"></span>
+          <div>
+            <h3>If macOS blocks the first launch</h3>
+            <p>CaptureKit is not notarized, so Gatekeeper may quarantine it on first open. After dragging it into <span class="mono">/Applications</span>, run this in Terminal to clear the quarantine flag:</p>
+            <div class="terminal">
+              <span class="dot" aria-hidden="true">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
+              </span>
+              <code id="xattr-cmd">xattr -dr com.apple.quarantine /Applications/CaptureKit.app</code>
+              <button type="button" id="copy-btn" aria-label="Copy command">Copy</button>
+            </div>
+            <p>Only do this for software you trust and downloaded from the official CaptureKit releases.</p>
+          </div>
+        </div>
+        <div class="step reveal">
+          <span class="no" aria-hidden="true"></span>
+          <div>
+            <h3>Launch and grant Screen Recording</h3>
+            <p>The first capture triggers macOS's screen-recording permission prompt — allow it, then trigger the capture again. That's the only permission screenshots need.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Notes / troubleshooting -->
+  <section id="notes">
+    <div class="wrap">
+      <div class="head reveal">
+        <span class="eyebrow">Good to know</span>
+        <h2>First-launch notes.</h2>
+      </div>
+      <div class="notes">
+        <div class="note reveal">
+          <h3>Is removing quarantine safe?</h3>
+          <p>The <span class="mono">xattr</span> command only clears the flag macOS adds to downloaded files; it doesn't verify or change the app. Judge the source, then decide — that's exactly what notarization would otherwise do for you.</p>
+        </div>
+        <div class="note reveal">
+          <h3>How updates work</h3>
+          <p>CaptureKit checks GitHub Releases once a day through the Sparkle framework. Update packages are signed (EdDSA) and installed only after you confirm. Manual check any time: menu-bar right-click → <span class="mono">Check for Updates…</span>. After an update, if macOS re-quarantines the app, run the same <span class="mono">xattr</span> command again.</p>
+        </div>
+        <div class="note reveal">
+          <h3>Where your data lives</h3>
+          <ul>
+            <li>All captures, the history database and settings stay in <span class="mono">~/Library/Application Support/CaptureKit/</span></li>
+            <li>Clipboard history is off by default; deleting history deletes the files with it</li>
+            <li>OCR runs locally via the Vision framework — nothing is uploaded anywhere</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Closing -->
+  <section class="closing">
+    <div class="wrap">
+      <span class="eyebrow reveal">Local-first by design</span>
+      <h2 class="reveal">Everything stays on your Mac.</h2>
+      <p class="reveal">No accounts. No cloud. No telemetry. Just a fast, native tool that gets out of the way.</p>
+      <div class="reveal">
+        <a class="cta-primary download" href="https://github.com/ahao430/CaptureKit/releases/latest/download/CaptureKit.dmg">
+          Download for macOS
+          <span class="tail" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
+          </span>
+        </a>
+      </div>
+      <div class="fine reveal">macOS 14+ · Universal binary · Sparkle auto-update</div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>CaptureKit — Capture. Organize. Reuse.</span>
+    <div class="row">
+      <a href="https://github.com/ahao430/CaptureKit">Source</a>
+      <a href="https://github.com/ahao430/CaptureKit/releases">Releases</a>
+      <a href="https://github.com/ahao430/CaptureKit/issues">Issues</a>
+    </div>
+    <span>Built with Swift, AppKit &amp; ScreenCaptureKit</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+  // Scroll entry
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(function (el) { observer.observe(el); });
+
+  // Copy the xattr command (file:// safe: clipboard API with execCommand fallback)
+  var btn = document.getElementById('copy-btn');
+  var cmd = document.getElementById('xattr-cmd');
+  if (btn && cmd) {
+    btn.addEventListener('click', function () {
+      var text = cmd.textContent;
+      var done = function () {
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { fallback(); });
+      } else {
+        fallback();
+      }
+      function fallback() {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) { /* selection stays visible */ }
+        document.body.removeChild(ta);
+      }
+    });
+  }
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,30 @@
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+# xcodegen（project.yml 为源，xcodeproj 可重新生成；保留 xcodeproj 供直接打开）
+# 如需忽略工程文件，取消下一行注释
+# CaptureKit.xcodeproj
+
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.build/
+Package.resolved
+
+# 其它
+*.log
+.idea/
+
+# 会话工具产物
+.v2c/
+.video_agent/
+mini-ide-out/
+
+# 发布演练临时目录
+appcast-staging/
