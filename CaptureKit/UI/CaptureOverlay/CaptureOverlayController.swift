@@ -339,12 +339,12 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
         activeTextField != nil
     }
 
-    /// 鼠标移出输入框范围 → 自动提交（非空落标注），交互态立即恢复正常。
+    /// 鼠标移出框选区域 → 自动提交（钉钉行为）；选区内移动不打断输入。
     func overlayCommitTextEditingIfOutside(globalPoint: CGPoint) {
-        guard let editing = activeTextField, let window = editing.view.window else { return }
-        let fieldFrame = window.convertToScreen(editing.field.frame)
-        guard !fieldFrame.insetBy(dx: 6, dy: 6).contains(globalPoint) else { return }
-        endTextEditing(commit: true)
+        guard activeTextField != nil, let selection = model.selection else { return }
+        if !selection.insetBy(dx: -2, dy: -2).contains(globalPoint) {
+            endTextEditing(commit: true)
+        }
     }
 
     /// 视图请求结束文字编辑（点击其他区域时；非空提交）。
