@@ -113,14 +113,11 @@ private struct CaptureSettingsView: View {
             }
 
             Section {
-                Toggle("截图后自动进入编辑器", isOn: Binding(
-                    get: { store.settings.editor.autoOpenEditor },
-                    set: { newValue in store.update { $0.editor.autoOpenEditor = newValue } }
-                ))
+                EmptyView()
             } header: {
                 Text("编辑器")
             } footer: {
-                Text("关闭后截图直接复制到剪贴板（可配合下方自动复制）。也可在选区工具栏点「编辑」手动进入。")
+                Text("截图 ✓ 直接复制到剪贴板；需要完整编辑时用选区右键菜单「在编辑器中打开」。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

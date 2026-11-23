@@ -427,3 +427,14 @@ Esc 阶梯变为：草稿 → 选中标注 → 选区 → 取消 Overlay。新�
 | 去掉「选择」按钮 | `activeTool: AnnotationType?`，nil = 选择（拖动 = 移动选区/标注）；再点当前工具 = 取消回到选择（与钉钉一致） |
 
 OCR/长截图/录制入口从选区工具栏移到模式胶囊（右键菜单仍保留全部入口）。
+
+## 第三轮反馈修正：图标统一/录屏边框/✓ 语义/OCR 结果窗（2026-11-23）
+
+| 反馈 | 实现 |
+| --- | --- |
+| 图标不统一、缺文字提示 | 工具栏按钮改为图标(15pt 统一 SymbolConfiguration)+9pt 白色文字标签竖排；画笔→scribble、模糊→drop、编号→number |
+| 录屏看不到边框 | `RecordingRegionBorderPanel`：区域四周 3pt 红色描边 + 四角白点，`ignoresMouseEvents`；录屏流排除自身 App 不会入镜；随 cleanup 隐藏（窗口录制不画：窗口可移动） |
+| ✓ 应写剪贴板 | `deliver(.copy)` 去掉 autoOpenEditor 分支，一律复制 + toast；设置页移除该开关（编辑器改经右键「在编辑器中打开」） |
+| OCR 先显示不立刻关 | `OCRResultPanelController`：结果窗口展示识别文字（可选中），「复制全部/关闭」手动操作，不再自动写剪贴板自动消失 |
+
+CaptureResultToast 增加 showText 纯文本变体（与图片 toast 共用定位/悬停逻辑）。

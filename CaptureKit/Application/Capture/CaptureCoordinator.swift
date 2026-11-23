@@ -173,7 +173,7 @@ final class CaptureCoordinator {
             }
 
         case .recognizeRegion(let rect):
-            // 选区 OCR：捕获 → Vision 识别 → 结果复制剪贴板 → toast 反馈
+            // 选区 OCR：捕获 → Vision 识别 → 结果窗口展示（不自动关闭，钉钉行为）
             guard !isCapturing else { return }
             isCapturing = true
             Task { [weak self] in
@@ -188,12 +188,7 @@ final class CaptureCoordinator {
                     )
                     self.onRecordScreenshot?(output.image)
                     let text = try await OCRService.recognizeText(in: output.image)
-                    if text.isEmpty {
-                        CaptureResultToast.show(image: output.image, message: "未识别到文字", anchorRect: rect)
-                    } else {
-                        ClipboardWriter.copyText(text)
-                        CaptureResultToast.show(image: output.image, message: "已复制识别文字", anchorRect: rect)
-                    }
+                    OCRResultPanelController.shared.show(text: text, anchorRect: rect)
                 } catch {
                     self.report(error)
                 }
@@ -272,20 +267,12 @@ final class CaptureCoordinator {
 
         switch action {
         case .copy:
-            // 截图完成默认进入编辑器（plan.md §2.4，可在设置关闭）
-            if settings.settings.editor.autoOpenEditor {
-                onEditImage?(output.image)
-            } else {
-                do {
-                    try ClipboardWriter.copy(output.image)
-                    if settings.settings.capture.autoCopyToClipboard {
-                        CaptureResultToast.show(image: output.image, message: "已复制到剪贴板", anchorRect: anchorRect)
-                    } else {
-                        CaptureResultToast.show(image: output.image, message: "捕获完成", anchorRect: anchorRect)
-                    }
-                } catch {
-                    report(error)
-                }
+            // ✓/Enter = 直接写剪贴板（钉钉语义：选区内标注已就绪，不再自动打开编辑器）
+            do {
+                try ClipboardWriter.copy(output.image)
+                CaptureResultToast.show(image: output.image, message: "已复制到剪贴板", anchorRect: anchorRect)
+            } catch {
+                report(error)
             }
 
         case .save:

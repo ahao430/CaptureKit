@@ -11,7 +11,7 @@ final class CaptureResultToast {
     static func show(image: CGImage, message: String, anchorRect: CGRect) {
         hide()
 
-        let thumbnailMaxSize = CGSize(width: 160, height: 100)
+        let thumbnailMaxSize = CGSize(width: 160, height: 44)
         let thumbnail = makeThumbnail(image: image, maxSize: thumbnailMaxSize)
 
         let contentView = NSView()
@@ -30,19 +30,59 @@ final class CaptureResultToast {
         label.textColor = .secondaryLabelColor
         label.translatesAutoresizingMaskIntoConstraints = false
 
-        let stack = NSStackView(views: [imageView, label])
+        present(
+            contentView: contentView,
+            views: [imageView, label],
+            size: NSSize(width: max(220, thumbnail.size.width + label.fittingSize.width + 60), height: 64),
+            message: message,
+            anchorRect: anchorRect
+        )
+    }
+
+    /// 纯文本提示（无缩略图）。
+    static func showText(message: String, anchorRect: CGRect) {
+        hide()
+
+        let contentView = NSView()
+        contentView.wantsLayer = true
+        contentView.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.97).cgColor
+        contentView.layer?.cornerRadius = 10
+        contentView.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.5).cgColor
+        contentView.layer?.borderWidth = 0.5
+
+        let label = NSTextField(labelWithString: message)
+        label.font = .systemFont(ofSize: 12, weight: .medium)
+        label.textColor = .secondaryLabelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        present(
+            contentView: contentView,
+            views: [label],
+            size: NSSize(width: max(160, label.fittingSize.width + 40), height: 40),
+            message: message,
+            anchorRect: anchorRect
+        )
+    }
+
+    /// 组装并展示 toast 面板（共用定位/自动关闭逻辑）。
+    private static func present(
+        contentView: NSView,
+        views: [NSView],
+        size: NSSize,
+        message: String,
+        anchorRect: CGRect
+    ) {
+        let stack = NSStackView(views: views)
         stack.orientation = .horizontal
         stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(stack)
 
-        let size = NSSize(width: max(220, thumbnail.size.width + label.fittingSize.width + 60), height: 64)
         contentView.frame = NSRect(origin: .zero, size: size)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
             stack.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -12),
             stack.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            imageView.heightAnchor.constraint(lessThanOrEqualToConstant: 44),
         ])
 
         let panel = NSPanel(

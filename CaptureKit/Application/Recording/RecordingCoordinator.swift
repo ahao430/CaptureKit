@@ -16,6 +16,8 @@ final class RecordingCoordinator {
     private let overlay: CaptureOverlayController
 
     private let hud = RecordingHUDPanel()
+    /// 区域录制边框（红色描边提示录制范围；不入镜不挡鼠标）
+    private var regionBorder: RecordingRegionBorderPanel?
 
     private var recorder: ScreenRecorder?
     private var videoWriter: VideoWriter?
@@ -316,6 +318,12 @@ final class RecordingCoordinator {
                 if mode == .video, recordingSettings.clickEffects {
                     self.clickHighlighter.start()
                 }
+                if let rect = regionRect {
+                    // 区域录制：显示红色边框提示范围（窗口录制不画：窗口可移动）
+                    let border = RecordingRegionBorderPanel(region: rect)
+                    border.show()
+                    self.regionBorder = border
+                }
                 self.showHUD()
                 Log.recording.info("Recording started (\(mode.displayName, privacy: .public), output \(outputWidth)×\(outputHeight))")
             } catch {
@@ -608,6 +616,8 @@ final class RecordingCoordinator {
     }
 
     private func cleanup() {
+        regionBorder?.hide()
+        regionBorder = nil
         recorder = nil
         videoWriter = nil
         gifEncoder = nil

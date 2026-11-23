@@ -71,6 +71,7 @@
 		AE5A4F46FFB0D7115433C85B /* EditorContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9267B3C62F246AC0EE020B99 /* EditorContentView.swift */; };
 		AEC997548DA06826C5B13F2F /* RecordingEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8C0542BF3E763439B952EBA /* RecordingEditorView.swift */; };
 		AEF1555CB009A00D91B793DB /* AnnotationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D27F0C1ADBEC5B8435114EE3 /* AnnotationTests.swift */; };
+		B03D003D0D8D11D9953078E2 /* OCRResultPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02B354085F007B02838BA8FF /* OCRResultPanel.swift */; };
 		B6B5FEB474ACF292E992305C /* DemoSelfCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B66B7F875DFEA6B7E9299F0 /* DemoSelfCapture.swift */; };
 		B85A8CE7780DE0C911CA2BE6 /* ClipboardWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B435564E210048FD4661FDF /* ClipboardWriterTests.swift */; };
 		B882518AA6A4B580F2A28EF2 /* PinnedImagePanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54ACB91A408B83F6E759DE2D /* PinnedImagePanelController.swift */; };
@@ -80,6 +81,7 @@
 		BE3EDD2AB26417219F184841 /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44F51993A44529E2D889973 /* Log.swift */; };
 		BE90B67F55AB111609BDF9C1 /* CaptureKitError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0E534DF02DA7A065F4874AB /* CaptureKitError.swift */; };
 		C0276A4F262BE769284110AF /* OCRTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C8252993BFB497424B1D18F /* OCRTests.swift */; };
+		C3DBA5E2A2F6B39A5275D7CB /* RecordingRegionBorderPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE4542A6908B3AF891B22EE1 /* RecordingRegionBorderPanel.swift */; };
 		C67756AE8FECE22AF4E72039 /* CarbonHotkeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 886226F502B226C6F6A9DF19 /* CarbonHotkeyCenter.swift */; };
 		C8A10ADD089B602EB9B1E1C4 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DBF06331D638DED0F757B9 /* AppEnvironment.swift */; };
 		CB4BF7FD9DD99F3BE85FA241 /* CaptureOverlayWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBCA8FE2B4E137DCBDA98C7 /* CaptureOverlayWindow.swift */; };
@@ -117,6 +119,7 @@
 /* Begin PBXFileReference section */
 		0082553D2D802338DB06F9C3 /* VideoWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoWriter.swift; sourceTree = "<group>"; };
 		0183E86D90FE9339C3BD5224 /* RecordingHUDPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingHUDPanel.swift; sourceTree = "<group>"; };
+		02B354085F007B02838BA8FF /* OCRResultPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRResultPanel.swift; sourceTree = "<group>"; };
 		06DB94727BFB1393E3DB73F7 /* PixelColorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PixelColorTests.swift; sourceTree = "<group>"; };
 		07A4A8CAEE4F0E5AEA71847A /* OverlaySelectionModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlaySelectionModel.swift; sourceTree = "<group>"; };
 		07D854EEA0F42D662D33016E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -206,6 +209,7 @@
 		E7406CC981738E7D420ED1FF /* CaptureKitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureKitApp.swift; sourceTree = "<group>"; };
 		EB496594757681D1620D905F /* AsyncThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncThumbnailView.swift; sourceTree = "<group>"; };
 		ECBCA8FE2B4E137DCBDA98C7 /* CaptureOverlayWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureOverlayWindow.swift; sourceTree = "<group>"; };
+		EE4542A6908B3AF891B22EE1 /* RecordingRegionBorderPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingRegionBorderPanel.swift; sourceTree = "<group>"; };
 		EE6369FC19D31CDDE6691E02 /* AnnotationRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationRenderer.swift; sourceTree = "<group>"; };
 		F0F22DF504D953B089F5E262 /* ClipboardMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardMonitor.swift; sourceTree = "<group>"; };
 		F1362D86E9D73196166BE206 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
@@ -349,6 +353,7 @@
 			isa = PBXGroup;
 			children = (
 				092A707C67249D767D79385F /* CaptureResultToast.swift */,
+				02B354085F007B02838BA8FF /* OCRResultPanel.swift */,
 			);
 			path = CaptureResult;
 			sourceTree = "<group>";
@@ -462,6 +467,7 @@
 			isa = PBXGroup;
 			children = (
 				0183E86D90FE9339C3BD5224 /* RecordingHUDPanel.swift */,
+				EE4542A6908B3AF891B22EE1 /* RecordingRegionBorderPanel.swift */,
 			);
 			path = RecordingHUD;
 			sourceTree = "<group>";
@@ -807,6 +813,7 @@
 				59A94E40294AE638ED93C5EC /* MenuBarManager.swift in Sources */,
 				76626E62121B068D882A1B41 /* MenuBarPopoverView.swift in Sources */,
 				E48C023E6389F21E4E30862B /* MicrophonePermission.swift in Sources */,
+				B03D003D0D8D11D9953078E2 /* OCRResultPanel.swift in Sources */,
 				0230E427CDA9890E8AD44868 /* OCRService.swift in Sources */,
 				A421E4AFB6EC1730F08A134E /* OverlayAnnotationExporter.swift in Sources */,
 				6FB93D750AA5D2B6CB7FD2F1 /* OverlayModePanel.swift in Sources */,
@@ -822,6 +829,7 @@
 				AEC997548DA06826C5B13F2F /* RecordingEditorView.swift in Sources */,
 				DEAF96F94863C5E6C0D956E8 /* RecordingEditorWindowController.swift in Sources */,
 				0B9F11B1CFC1232415691B3A /* RecordingHUDPanel.swift in Sources */,
+				C3DBA5E2A2F6B39A5275D7CB /* RecordingRegionBorderPanel.swift in Sources */,
 				EE201B3B1F1B0351ED08B993 /* RecordingSession.swift in Sources */,
 				6EA2D2383EAB79B5A0013F63 /* SQLiteDatabase.swift in Sources */,
 				FF1C7A36DEEF0034954A3F73 /* ScreenCaptureEngine.swift in Sources */,

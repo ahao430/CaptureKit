@@ -46,7 +46,7 @@ final class SelectionToolbarPanel: NSPanel {
 
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 52),
+            contentRect: NSRect(x: 0, y: 0, width: 620, height: 60),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -65,7 +65,7 @@ final class SelectionToolbarPanel: NSPanel {
 
     private func buildsContent() {
         // 深色毛玻璃胶囊
-        let effect = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: 560, height: 52))
+        let effect = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: 560, height: 60))
         effect.material = .hudWindow
         effect.blendingMode = .behindWindow
         effect.state = .active
@@ -73,7 +73,7 @@ final class SelectionToolbarPanel: NSPanel {
         effect.layer?.cornerRadius = 14
         effect.layer?.masksToBounds = true
         effect.autoresizingMask = [.width]
-        let border = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 52))
+        let border = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 60))
         border.wantsLayer = true
         border.layer?.borderColor = NSColor.white.withAlphaComponent(0.14).cgColor
         border.layer?.borderWidth = 1
@@ -81,20 +81,40 @@ final class SelectionToolbarPanel: NSPanel {
         border.autoresizingMask = [.width]
         glassViews = [effect, border]
 
-        func makeIconButton(symbol: String, tooltip: String, action: Selector) -> NSButton {
+        // 统一的白色线性图标配置（同字号同字重，视觉一致）
+        let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
+
+        func symbolImage(_ name: String) -> NSImage? {
+            NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+                .withSymbolConfiguration(symbolConfiguration)
+        }
+
+        /// 图标 + 文字标签的竖排按钮（钉钉式可读性）；返回外容器与内部按钮（供选中态着色）。
+        func makeIconButton(symbol: String, label: String, action: Selector) -> (box: NSView, button: NSButton) {
             let button: NSButton
-            if let image = NSImage(systemSymbolName: symbol, accessibilityDescription: tooltip) {
+            if let image = symbolImage(symbol) {
                 button = NSButton(image: image, target: self, action: action)
             } else {
-                button = NSButton(title: tooltip, target: self, action: action)
+                button = NSButton(title: label, target: self, action: action)
             }
             button.isBordered = false
-            button.font = .systemFont(ofSize: 16)
             button.contentTintColor = .white
-            button.toolTip = tooltip
+            button.toolTip = label
             button.imageScaling = .scaleProportionallyDown
             button.setButtonType(.momentaryPushIn)
-            return button
+            button.translatesAutoresizingMaskIntoConstraints = false
+
+            let text = NSTextField(labelWithString: label)
+            text.font = .systemFont(ofSize: 9)
+            text.textColor = NSColor.white.withAlphaComponent(0.85)
+            text.translatesAutoresizingMaskIntoConstraints = false
+
+            let box = NSStackView(views: [button, text])
+            box.orientation = .vertical
+            box.alignment = .centerX
+            box.spacing = 1
+            box.edgeInsets = NSEdgeInsets(top: 3, left: 2, bottom: 2, right: 2)
+            return (box, button)
         }
 
         // 色圆（当前颜色；点击展开色板 + 线宽）
@@ -161,17 +181,19 @@ final class SelectionToolbarPanel: NSPanel {
         // 绘制工具
         let toolSymbols: [(AnnotationType, String)] = [
             (.rectangle, "rectangle"), (.ellipse, "oval"), (.arrow, "arrow.up.right"),
-            (.brush, "pencil.tip"), (.mosaic, "square.grid.3x3"), (.blur, "drop.halffull"),
-            (.text, "textformat"), (.numberedMarker, "number.circle"),
+            (.brush, "scribble"), (.mosaic, "square.grid.3x3"), (.blur, "drop"),
+            (.text, "textformat"), (.numberedMarker, "number"),
         ]
+        var toolBoxes: [NSView] = []
         for (type, symbol) in toolSymbols {
-            let button = makeIconButton(symbol: symbol, tooltip: type.displayName, action: #selector(toolTapped(_:)))
-            button.tag = toolSymbols.firstIndex(where: { $0.0 == type }) ?? 0
-            toolButtons[type] = button
+            let made = makeIconButton(symbol: symbol, label: type.displayName, action: #selector(toolTapped(_:)))
+            made.button.tag = toolSymbols.firstIndex(where: { $0.0 == type }) ?? 0
+            toolButtons[type] = made.button
+            toolBoxes.append(made.box)
         }
-        let toolRow = NSStackView(views: toolSymbols.map { toolButtons[$0.0]! })
+        let toolRow = NSStackView(views: toolBoxes)
         toolRow.orientation = .horizontal
-        toolRow.spacing = 6
+        toolRow.spacing = 4
 
         func separator() -> NSView {
             let line = NSView()
@@ -179,25 +201,25 @@ final class SelectionToolbarPanel: NSPanel {
             line.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.22).cgColor
             line.translatesAutoresizingMaskIntoConstraints = false
             line.widthAnchor.constraint(equalToConstant: 1).isActive = true
-            line.heightAnchor.constraint(equalToConstant: 22).isActive = true
+            line.heightAnchor.constraint(equalToConstant: 34).isActive = true
             return line
         }
 
-        let undo = makeIconButton(symbol: "arrow.uturn.backward", tooltip: "撤销 ⌘Z", action: #selector(undoTapped))
-        let pin = makeIconButton(symbol: "pin", tooltip: "贴图（钉在屏幕上）", action: #selector(pinTapped))
-        let save = makeIconButton(symbol: "square.and.arrow.down", tooltip: "保存", action: #selector(saveTapped))
-        let cancel = makeIconButton(symbol: "xmark", tooltip: "取消 ⎋", action: #selector(cancelTapped))
-        let finish = makeIconButton(symbol: "checkmark", tooltip: "完成 ⏎（复制含标注）", action: #selector(finishTapped))
+        let undo = makeIconButton(symbol: "arrow.uturn.backward", label: "撤销", action: #selector(undoTapped))
+        let pin = makeIconButton(symbol: "pin", label: "贴图", action: #selector(pinTapped))
+        let save = makeIconButton(symbol: "square.and.arrow.down", label: "保存", action: #selector(saveTapped))
+        let cancel = makeIconButton(symbol: "xmark", label: "取消", action: #selector(cancelTapped))
+        let finish = makeIconButton(symbol: "checkmark", label: "完成", action: #selector(finishTapped))
 
         let stack = NSStackView(views: [
-            colorCircleBox, toolRow, expandGroup, separator(), undo, separator(), pin, save, cancel, finish,
+            colorCircleBox, toolRow, expandGroup, separator(), undo.box, separator(), pin.box, save.box, cancel.box, finish.box,
         ])
         stack.orientation = .horizontal
-        stack.spacing = 10
-        stack.edgeInsets = NSEdgeInsets(top: 0, left: 14, bottom: 0, right: 14)
+        stack.spacing = 8
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 52))
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 620, height: 60))
         container.addSubview(effect)
         container.addSubview(border)
         container.addSubview(stack)
@@ -217,11 +239,11 @@ final class SelectionToolbarPanel: NSPanel {
         var frame = self.frame
         frame.size.width = target
         // 左上角锚定（AppKit 原点在左下）
-        frame.origin.y = frame.maxY - 52
+        frame.origin.y = frame.maxY - 60
         setFrame(frame, display: true)
-        container.frame = NSRect(x: 0, y: 0, width: target, height: 52)
+        container.frame = NSRect(x: 0, y: 0, width: target, height: 60)
         for view in glassViews {
-            view.frame = NSRect(x: 0, y: 0, width: target, height: 52)
+            view.frame = NSRect(x: 0, y: 0, width: target, height: 60)
         }
         stack.needsLayout = true
     }
