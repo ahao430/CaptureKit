@@ -47,6 +47,9 @@ final class OverlayTextEntryPanel: NSPanel, NSTextFieldDelegate {
         contentView = container
     }
 
+    /// 无边框面板默认不能成为 key window，必须显式放开才能接收键盘输入。
+    override var canBecomeKey: Bool { true }
+
     /// 在全局点（文本左下角）附近展示并聚焦。
     func show(at globalPoint: CGPoint, fontSize: CGFloat, color: AnnotationColor) {
         isClosed = false
@@ -56,9 +59,8 @@ final class OverlayTextEntryPanel: NSPanel, NSTextFieldDelegate {
 
         // 面板放在点击点上方（输入框底边对齐文本落点）
         setFrameOrigin(CGPoint(x: max(4, globalPoint.x), y: globalPoint.y))
-        orderFrontRegardless()
-        makeKey()
-        textField.becomeFirstResponder()
+        makeKeyAndOrderFront(nil)
+        makeFirstResponder(textField)
     }
 
     override func cancelOperation(_ sender: Any?) {

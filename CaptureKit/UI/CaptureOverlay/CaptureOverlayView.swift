@@ -467,10 +467,32 @@ final class CaptureOverlayView: NSView {
                 style: style
             )
             delegate?.overlaySelectionDidChange()
-        case .rectangle, .ellipse, .mosaic, .blur:
+        case .rectangle:
+            // 草稿几何必须与工具类型一致（渲染/拖拽更新都按几何分支走）
             model.draftAnnotation = Annotation(
-                type: tool,
+                type: .rectangle,
                 geometry: .rect(CGRect(origin: local, size: .zero)),
+                style: style
+            )
+            delegate?.overlaySelectionDidChange()
+        case .ellipse:
+            model.draftAnnotation = Annotation(
+                type: .ellipse,
+                geometry: .ellipse(inRect: CGRect(origin: local, size: .zero)),
+                style: style
+            )
+            delegate?.overlaySelectionDidChange()
+        case .mosaic:
+            model.draftAnnotation = Annotation(
+                type: .mosaic,
+                geometry: .mosaic(CGRect(origin: local, size: .zero)),
+                style: style
+            )
+            delegate?.overlaySelectionDidChange()
+        case .blur:
+            model.draftAnnotation = Annotation(
+                type: .blur,
+                geometry: .blur(CGRect(origin: local, size: .zero)),
                 style: style
             )
             delegate?.overlaySelectionDidChange()

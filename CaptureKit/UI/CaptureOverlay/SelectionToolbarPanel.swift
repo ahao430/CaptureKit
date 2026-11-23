@@ -182,7 +182,7 @@ final class SelectionToolbarPanel: NSPanel {
         let toolSymbols: [(AnnotationType, String)] = [
             (.rectangle, "rectangle"), (.ellipse, "oval"), (.arrow, "arrow.up.right"),
             (.brush, "scribble"), (.mosaic, "square.grid.3x3"), (.blur, "drop"),
-            (.text, "textformat"), (.numberedMarker, "number"),
+            (.text, "character.textbox"), (.numberedMarker, "number"),
         ]
         var toolBoxes: [NSView] = []
         for (type, symbol) in toolSymbols {
