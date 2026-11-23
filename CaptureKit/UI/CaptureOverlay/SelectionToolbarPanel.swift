@@ -248,6 +248,8 @@ final class SelectionToolbarPanel: NSPanel {
         ])
         stack.orientation = .horizontal
         stack.spacing = 6
+        // 色圆与工具组之间留出分组间距（默认 6pt 时实心圆与矩形图标视觉上贴在一起）
+        stack.setCustomSpacing(18, after: colorCircleBox)
         stack.edgeInsets = NSEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
