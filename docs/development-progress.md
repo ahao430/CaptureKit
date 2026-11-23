@@ -497,3 +497,15 @@ CaptureResultToast 增加 showText 纯文本变体（与图片 toast 共用定�
 
 其他：中文输入法组字 Enter 不再误提交（markedRange）；意图路由每选区只触发一次；
 Esc 直接取消；文字输入为 Overlay 内嵌 NSTextField（复用已验证键盘链路），移开自动提交。
+
+## 工具栏补回 OCR/滚动/录屏 + 打字激活修复（2026-11-24，第十轮反馈）
+
+- 工具栏加回 识别文字/长截图/录屏 三按钮（此前移入模式胶囊，用户要求同排可见），
+  宽度自适应挂到 position()（固定宽导致新按钮溢出裁剪）
+- 打字失效根因（nonactivatingPanel 化后）：点击不再激活应用，热键路径应用可能
+  仍是后台态，输入框收不到键盘。修复：输入框打开时 NSApp.activate +
+  NSRunningApplication.activate(.activateAllWindows) 双机制 + makeKeyAndOrderFront
+- Return 同步收起输入框会让在途按键重新派发到 overlay keyDown（实测触发整图复制）
+  → 提交/取消改异步派发
+- CGEvent 回归（坐标来自应用自报按钮探针）：文字打字提交 → 编号 → OCR 按钮结束
+  并弹结果窗，全程层序稳定

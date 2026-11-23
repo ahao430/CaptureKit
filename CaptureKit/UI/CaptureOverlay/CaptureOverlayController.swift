@@ -142,6 +142,18 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
             }
             self.overlaySelectionDidChange()
         }
+        toolbarPanel.onRecognizeText = { [weak self] in
+            guard let selection = self?.model.selection else { return }
+            self?.finish(.recognizeRegion(selection))
+        }
+        toolbarPanel.onScrollCapture = { [weak self] in
+            guard let selection = self?.model.selection else { return }
+            self?.finish(.scrollRegion(selection))
+        }
+        toolbarPanel.onRecordVideo = { [weak self] in
+            guard let selection = self?.model.selection else { return }
+            self?.finish(.recordRegion(selection, mode: .video))
+        }
         toolbarPanel.onPin = { [weak self] in
             guard let selection = self?.model.selection else { return }
             self?.finish(.pinRegion(selection))
@@ -375,6 +387,12 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
         view.addSubview(field)
         activeTextField = (field, view, selectionLocal)
 
+        // 输入框打开 = 需要键盘：应用必须处于激活态（热键路径可能仍是后台态）。
+        // 双机制激活 + 窗口置顶，再由下方 orderFrontRegardless 恢复工具栏层序。
+        NSApp.activate(ignoringOtherApps: true)
+        NSRunningApplication.current.activate(options: [.activateAllWindows])
+        view.window?.makeKeyAndOrderFront(nil)
+
         // Overlay 窗口已是 key（键盘链路已被 Enter/Esc/取色验证），直接接管 first responder
         if let window = view.window {
             window.makeFirstResponder(field)
@@ -418,10 +436,16 @@ final class CaptureOverlayController: NSObject, CaptureOverlayViewDelegate, NSTe
             if textView.markedRange() != NSRange(location: NSNotFound, length: 0) {
                 return false
             }
-            endTextEditing(commit: true)
+            // 异步提交：同步移除 field 会让在途的同一按键事件重新派发到
+            // overlay keyDown（实测 Return 触发整图复制）。先让事件走完。
+            DispatchQueue.main.async { [weak self] in
+                self?.endTextEditing(commit: true)
+            }
             return true
         case #selector(NSResponder.cancelOperation(_:)):
-            endTextEditing(commit: false)
+            DispatchQueue.main.async { [weak self] in
+                self?.endTextEditing(commit: false)
+            }
             return true
         default:
             return false

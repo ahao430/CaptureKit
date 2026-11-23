@@ -29,6 +29,9 @@ final class SelectionToolbarPanel: NSPanel {
     var onColorChange: ((AnnotationColor) -> Void)?
     var onWidthChange: ((OverlayLineWidth) -> Void)?
     var onUndo: (() -> Void)?
+    var onRecognizeText: (() -> Void)?
+    var onScrollCapture: (() -> Void)?
+    var onRecordVideo: (() -> Void)?
     var onPin: (() -> Void)?
     var onSave: (() -> Void)?
     var onCancel: (() -> Void)?
@@ -38,6 +41,7 @@ final class SelectionToolbarPanel: NSPanel {
     private var toolButtons: [AnnotationType: NSButton] = [:]
     private var colorButtons: [AnnotationColor: NSButton] = [:]
     private var widthButtons: [OverlayLineWidth: NSButton] = [:]
+    private var actionButtons: [String: NSButton] = [:]
     private let colorCircle = NSButton(title: "", target: nil, action: nil)
     private let expandGroup = NSStackView()
     private let colorCircleLayer = CALayer()
@@ -199,6 +203,13 @@ final class SelectionToolbarPanel: NSPanel {
         }
 
         let undo = makeIconButton(symbol: "arrow.uturn.backward", label: "撤销", action: #selector(undoTapped))
+        let ocr = makeIconButton(symbol: "text.viewfinder", label: "识别文字", action: #selector(recognizeTapped))
+        let scroll = makeIconButton(symbol: "scroll", label: "长截图", action: #selector(scrollTapped))
+        let record = makeIconButton(symbol: "record.circle", label: "录屏", action: #selector(recordTapped))
+        actionButtons["undo"] = undo
+        actionButtons["ocr"] = ocr
+        actionButtons["scroll"] = scroll
+        actionButtons["record"] = record
         let pin = makeIconButton(symbol: "pin", label: "贴图", action: #selector(pinTapped))
         let save = makeIconButton(symbol: "square.and.arrow.down", label: "保存", action: #selector(saveTapped))
         let cancel = makeIconButton(symbol: "xmark", label: "取消", action: #selector(cancelTapped))
@@ -207,7 +218,7 @@ final class SelectionToolbarPanel: NSPanel {
         let stack = NSStackView(views: [
             colorCircleBox, expandGroup,
         ] + toolButtonsOrdered + [
-            separator(), undo, separator(), pin, save, cancel, finish,
+            separator(), ocr, scroll, record, separator(), undo, separator(), pin, save, cancel, finish,
         ])
         stack.orientation = .horizontal
         stack.spacing = 6
@@ -271,6 +282,8 @@ final class SelectionToolbarPanel: NSPanel {
 
     /// 放置到选区上方（空间不足时下方），并 clamp 到屏幕内。
     func position(above selection: CGRect, in screen: NSScreen) {
+        // 每次显示前按内容自适应宽度（新增按钮后固定宽度会溢出裁剪）
+        syncPanelWidth()
         let visible = screen.visibleFrame
         let gap: CGFloat = 10
         var origin = CGPoint(
@@ -312,6 +325,9 @@ final class SelectionToolbarPanel: NSPanel {
     }
 
     @objc private func undoTapped() { onUndo?() }
+    @objc private func recognizeTapped() { onRecognizeText?() }
+    @objc private func scrollTapped() { onScrollCapture?() }
+    @objc private func recordTapped() { onRecordVideo?() }
     @objc private func pinTapped() { onPin?() }
     @objc private func saveTapped() { onSave?() }
     @objc private func cancelTapped() { onCancel?() }
