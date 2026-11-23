@@ -400,3 +400,17 @@ v0.1.4 实机结果：授权成功后不再重复弹出——根因（ad-hoc DR 
 新增 Overlay Result 分支：`regionAnnotated` / `recognizeRegion` / `recordRegion` / `scrollRegion` / `pinRegion`；`RecordingCoordinator.startRecordingInRegion`、`ScrollCoordinator.startCapturing(in:)` 提供选区直入口（AppEnvironment 装配）。
 
 测试夹具坑（记录）：`CGColor(red:...)` 构造的是扩展 sRGB 色，绘制进 DeviceRGB 位图上下文会色彩转换偏色（实测红变 255,38,0）——测试需用分量式 `setFillColor(red:green:blue:alpha:)`。
+
+## 一体化工具栏重构：对齐钉钉交互（2026-11-23）
+
+用户反馈三批次后「跟钉钉差别仍大」。确认差距后全量重构（192 测试通过）：
+
+| 方向 | 实现 |
+| --- | --- |
+| 一体化工具栏 | 删除「标注模式」二段式概念（`annotateMode` 移除）；`OverlayTool`（.select / .annotate(type)）统一工具状态。选中选区后工具栏两行常驻：上行工具+颜色+线宽+撤销，下行动作。默认「选择」工具 = 拖动移动选区/调整控制点 |
+| 悬停十字参考线 | 无选区悬停时全屏虚线十字跟随（`drawDashedCrosshair`），配合放大镜坐标/取色 |
+| 标注可编辑 | 选择工具点选已画标注（命中测试从最上层）→ 虚线包围盒 → 拖动移动、⌫/Delete/右键/⌘Z 删除；改颜色/线宽实时同步到选中标注 |
+| 视觉细节 | 选区描边外发光（shadow blur 6）；工具栏圆角 12 + 两行布局；`SelectionToolbarPanel.reflect` 同步 toggle 选中态 |
+
+Esc 阶梯变为：草稿 → 选中标注 → 选区 → 取消 Overlay。新建选区/选区外右键会连同标注一并清空（标注属于选区）。
+`AnnotateToolPanel` 已删除（并入 SelectionToolbarPanel）；选区像素快照改为视图内懒重建（rect 比对 + 仅有效果标注时）。

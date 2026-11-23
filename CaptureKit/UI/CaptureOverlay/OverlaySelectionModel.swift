@@ -47,8 +47,10 @@ final class OverlaySelectionModel {
     /// 可交互窗口 frame 列表（悬停检测 / 单击选中 / 边缘吸附）
     var windowFrames: [CGRect] = []
 
-    /// 选区内容像素快照（标注模式马赛克/模糊实时预览的数据源；选区变化时失效）
+    /// 选区内容像素快照（标注马赛克/模糊实时预览的数据源；选区变化时失效）
     var selectionBaseImage: CGImage?
+    /// selectionBaseImage 对应的选区 frame（检测过期）
+    var selectionBaseImageForRect: CGRect?
 
     /// 当前交互/悬停中的全局鼠标点（十字线与放大镜跟随）
     var currentDragPoint: CGPoint?
@@ -56,13 +58,20 @@ final class OverlaySelectionModel {
     /// 取色复制反馈（"已复制 #RRGGBB"），短暂显示后由控制器清除
     var colorCopyFeedback: String?
 
-    // MARK: 选区内直接标注（DingTalk 式，批次 2）
+    // MARK: 选区内直接标注（一体化工具栏，DingTalk 式）
 
-    /// 标注模式：选区内直接绘制，不打开编辑器
-    var annotateMode = false
-    /// 当前标注工具
-    var annotateTool: AnnotationType = .arrow
-    /// 当前标注样式（新标注使用）
+    /// 一体化工具：.select = 选择/移动选区与已画标注；.annotate = 直接绘制
+    enum OverlayTool: Hashable {
+        case select
+        case annotate(AnnotationType)
+
+        var isSelect: Bool { self == .select }
+    }
+
+    /// 当前工具（默认选择：拖动 = 移动选区，与钉钉一致）
+    var activeTool: OverlayTool = .select
+
+    /// 当前标注样式（新标注使用；选中标注时也作为修改目标）
     var annotateStyle: AnnotationStyle = .default
     /// 已提交的标注（选区本地坐标：原点 = 选区左下角，y 向上）
     var annotations: [Annotation] = []
@@ -70,6 +79,10 @@ final class OverlaySelectionModel {
     var draftAnnotation: Annotation?
     /// 草稿拖拽起点（选区本地坐标）
     var annotateDragStart: CGPoint?
+    /// 选中的标注（选择工具点选；可拖动/Delete 删除）
+    var selectedAnnotationID: UUID?
+    /// 标注拖动会话（拖动中的标注及其原始几何）
+    var annotationDrag: (id: UUID, origin: AnnotationGeometry, dragOrigin: CGPoint)?
 
     var hasSelection: Bool { selection != nil }
 
@@ -81,12 +94,14 @@ final class OverlaySelectionModel {
     /// 正在绘制标注草稿（工具栏需要避让）
     var isAnnotateDrafting: Bool { draftAnnotation != nil }
 
+    var hasAnnotations: Bool { !annotations.isEmpty }
+
     /// 是否应显示放大镜：
     /// - 创建/调整/移动中（拖拽取色对齐边缘）
     /// - 无选区悬停时（DingTalk 式悬停取色）
-    /// 均要求鼠标点与快照可用；标注模式下不显示。
+    /// 均要求鼠标点与快照可用。
     var showsMagnifier: Bool {
-        guard !annotateMode, currentDragPoint != nil, !snapshots.isEmpty else { return false }
+        guard currentDragPoint != nil, !snapshots.isEmpty else { return false }
         if isInteracting { return true }
         return selection == nil
     }

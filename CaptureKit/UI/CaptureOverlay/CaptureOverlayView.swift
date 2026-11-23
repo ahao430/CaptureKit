@@ -66,7 +66,7 @@ final class CaptureOverlayView: NSView {
             drawHighlight(context, rect: hover)
         }
 
-        // 3. 选区提亮（清除交集暗化）+ 边框
+        // 3. 选区提亮（清除交集暗化）+ 边框（外发光提升辨识度，钉钉式）
         if let selection = model.selection {
             let intersection = selection.intersection(screenFrame)
             if !intersection.isNull, intersection.width >= 1, intersection.height >= 1 {
@@ -74,20 +74,38 @@ final class CaptureOverlayView: NSView {
                 context.setBlendMode(.clear)
                 context.fill(local)
                 context.setBlendMode(.normal)
+                // 外发光
+                context.saveGState()
+                context.setShadow(
+                    offset: CGSize(width: 0, height: 0),
+                    blur: 6,
+                    color: selectionBorderColor.withAlphaComponent(0.55).cgColor
+                )
+                context.setStrokeColor(selectionBorderColor.withAlphaComponent(0.9).cgColor)
+                context.setLineWidth(1.5)
+                context.stroke(local)
+                context.restoreGState()
+                // 主描边
                 context.setStrokeColor(selectionBorderColor.cgColor)
                 context.setLineWidth(1.5)
                 context.stroke(local)
             }
 
-            // 3.5 标注模式：选区内直接绘制标注（已提交 + 草稿），复用统一渲染管线
-            if model.annotateMode {
-                drawAnnotations(context, selection: selection)
+            // 3.5 标注常驻绘制（一体化工具栏：选中即标注，已提交 + 草稿），复用统一渲染管线
+            drawAnnotations(context, selection: selection)
+
+            // 3.6 选中标注的虚线包围盒（选择工具下）
+            if model.activeTool.isSelect, let id = model.selectedAnnotationID,
+               let annotation = model.annotations.first(where: { $0.id == id }) {
+                drawAnnotationSelectionBox(context, annotation: annotation, selection: selection)
             }
         }
 
-        // 4. 拖拽创建中：十字准线
+        // 4. 十字准线：创建拖拽中（实线可读性优先）或无选区悬停（虚线参考线）
         if case .creating = model.interaction, let current = model.currentDragPoint {
             drawCrosshair(context, at: current)
+        } else if model.selection == nil, !model.isInteracting, let current = model.currentDragPoint {
+            drawDashedCrosshair(context, at: current)
         }
 
         // 5. 跟随放大镜（创建/调整/移动中 + 无选区悬停取色；只在本屏鼠标附近绘制）
@@ -97,15 +115,15 @@ final class CaptureOverlayView: NSView {
             }
         }
 
-        // 6. 控制点（有选区且非创建交互时；标注模式下禁用调整）
-        if let selection = model.selection, !model.annotateMode {
+        // 6. 控制点（选择工具下才可调整选区；绘制工具下不干扰作画）
+        if let selection = model.selection, model.activeTool.isSelect {
             for handle in SelectionHandle.allCases {
                 drawHandle(context, handle: handle, on: selection)
             }
         }
 
-        // 7. 尺寸标签（仅选区中心所在屏绘制；标注模式下不显示）
-        if let selection = model.selection, !model.annotateMode, model.isInteracting || needsSizeLabel {
+        // 7. 尺寸标签（仅选区中心所在屏绘制；拖拽/调整中实时显示）
+        if let selection = model.selection, model.isInteracting || needsSizeLabel {
             let center = CGPoint(x: selection.midX, y: selection.midY)
             if screenFrame.contains(center) {
                 drawSizeLabel(context, for: selection)
@@ -123,14 +141,29 @@ final class CaptureOverlayView: NSView {
     override func mouseDown(with event: NSEvent) {
         let point = globalPoint(event)
 
-        // 标注模式：选区内绘制标注，选区外忽略（不新建/移动选区）
-        if model.annotateMode {
+        // 绘制工具 + 选区内 → 直接作画（一体化：无模式切换）
+        if !model.activeTool.isSelect,
+           let selection = model.selection,
+           selection.insetBy(dx: -2, dy: -2).contains(point) {
+            model.selectedAnnotationID = nil
             annotateMouseDown(at: point)
             return
         }
 
-        // 双击检测 → 窗口捕获
-        if let last = model.lastClick,
+        // 选择工具 + 选区内命中已画标注 → 选中并准备拖动
+        if model.activeTool.isSelect,
+           let selection = model.selection,
+           selection.insetBy(dx: 2, dy: 2).contains(point),
+           let hit = annotationHitTest(at: point, in: selection) {
+            model.selectedAnnotationID = hit.id
+            model.annotationDrag = (id: hit.id, origin: hit.geometry, dragOrigin: point)
+            delegate?.overlaySelectionDidChange()
+            return
+        }
+
+        // 双击检测 → 窗口捕获（绘制工具下双击视为两次落笔，不触发）
+        if model.activeTool.isSelect,
+           let last = model.lastClick,
            Date().timeIntervalSince(last.time) < 0.35,
            hypot(point.x - last.point.x, point.y - last.point.y) < 6 {
             model.lastClick = nil
@@ -145,18 +178,23 @@ final class CaptureOverlayView: NSView {
         if let selection = model.selection,
            let handle = ScreenGeometry.handle(at: point, of: selection) {
             model.interaction = .resizing(handle: handle)
+            model.selectedAnnotationID = nil
         }
         // 空格按住 或 选区内按下 → 移动
         else if model.isSpacePressed || (model.selection?.insetBy(dx: -4, dy: -4).contains(point) ?? false) {
             if let selection = model.selection {
                 model.interaction = .moving(dragOrigin: point, selectionOrigin: selection)
+                model.selectedAnnotationID = nil
             } else {
                 model.interaction = .creating(start: snapped(point))
             }
         }
-        // 新建选区（起点吸附窗口边缘）
+        // 新建选区（起点吸附窗口边缘；标注随旧选区一并丢弃）
         else {
             model.selection = nil
+            model.annotations.removeAll()
+            model.draftAnnotation = nil
+            model.selectedAnnotationID = nil
             needsSizeLabel = false
             model.interaction = .creating(start: snapped(point))
         }
@@ -167,8 +205,18 @@ final class CaptureOverlayView: NSView {
         let raw = globalPoint(event)
 
         // 标注草稿拖拽
-        if model.annotateMode, model.draftAnnotation != nil {
+        if model.draftAnnotation != nil {
             annotateDragged(to: raw)
+            return
+        }
+
+        // 已选标注拖动（选择工具）
+        if let drag = model.annotationDrag,
+           let index = model.annotations.firstIndex(where: { $0.id == drag.id }) {
+            let dx = raw.x - drag.dragOrigin.x
+            let dy = raw.y - drag.dragOrigin.y
+            model.annotations[index].geometry = drag.origin.translated(dx: dx, dy: dy)
+            delegate?.overlaySelectionDidChange()
             return
         }
 
@@ -197,8 +245,15 @@ final class CaptureOverlayView: NSView {
         let point = globalPoint(event)
 
         // 标注草稿提交
-        if model.annotateMode, model.draftAnnotation != nil {
+        if model.draftAnnotation != nil {
             commitAnnotateDraft()
+            return
+        }
+
+        // 结束标注拖动
+        if model.annotationDrag != nil {
+            model.annotationDrag = nil
+            delegate?.overlaySelectionDidChange()
             return
         }
 
@@ -242,29 +297,49 @@ final class CaptureOverlayView: NSView {
 
     override func rightMouseDown(with event: NSEvent) {
         let point = globalPoint(event)
-        // 选区内右键 → 上下文菜单；选区外右键 → 清除选区（标注模式下忽略，保护已画内容）
+        // 选区内右键 → 上下文菜单；选区外右键 → 清除选区（标注随选区一并丢弃）
         if model.selection?.insetBy(dx: -2, dy: -2).contains(point) == true {
             delegate?.overlayRequestsContextMenu(at: point)
-        } else if model.selection != nil, !model.annotateMode {
+        } else if model.selection != nil {
             model.selection = nil
             model.hoverWindowFrame = nil
+            model.annotations.removeAll()
+            model.draftAnnotation = nil
+            model.selectedAnnotationID = nil
             needsSizeLabel = false
             delegate?.overlaySelectionDidChange()
         }
     }
 
     override func keyDown(with event: NSEvent) {
-        // 标注模式：⌘Z 撤销上一条标注
-        if model.annotateMode, event.keyCode == 6, event.modifierFlags.contains(.command) {
-            if !model.annotations.isEmpty {
+        // ⌘Z：撤销上一条标注（有选中标注时先删选中的）
+        if event.keyCode == 6, event.modifierFlags.contains(.command) {
+            if let id = model.selectedAnnotationID {
+                model.annotations.removeAll { $0.id == id }
+                model.selectedAnnotationID = nil
+                model.annotationDrag = nil
+            } else if !model.annotations.isEmpty {
                 model.annotations.removeLast()
+            }
+            if model.hasAnnotations || model.annotations.isEmpty {
+                delegate?.overlaySelectionDidChange()
+            }
+            return
+        }
+
+        // Delete / Backspace：删除选中标注
+        if event.keyCode == 51 || event.keyCode == 117 {
+            if let id = model.selectedAnnotationID {
+                model.annotations.removeAll { $0.id == id }
+                model.selectedAnnotationID = nil
+                model.annotationDrag = nil
                 delegate?.overlaySelectionDidChange()
             }
             return
         }
 
         switch event.keyCode {
-        case 36: // Return → 确认（标注模式下 = 完成并复制）
+        case 36: // Return → 确认（有标注 = 复制含标注截图）
             if model.selection != nil {
                 delegate?.overlayRequestsConfirm(action: .copy)
             }
@@ -273,7 +348,6 @@ final class CaptureOverlayView: NSView {
                 delegate?.overlayDidRequestCopyColor(at: point)
             }
         case 49: // Space → 标记（空格 + 拖动 = 移动选区）
-            if model.annotateMode { break }
             model.isSpacePressed = true
         case 123...126: // 方向键微调选区
             if let selection = model.selection, !model.isInteracting {
@@ -283,8 +357,18 @@ final class CaptureOverlayView: NSView {
                 model.selection = ScreenGeometry.movedRect(selection, dx: dx, dy: dy)
                 delegate?.overlaySelectionDidChange()
             }
-        case 53: // ESC
-            delegate?.overlayRequestsCancel()
+        case 53: // ESC 阶梯：草稿 → 选中标注 → 选区 → 取消整个 Overlay
+            if model.draftAnnotation != nil {
+                model.draftAnnotation = nil
+                model.annotateDragStart = nil
+                delegate?.overlaySelectionDidChange()
+            } else if model.selectedAnnotationID != nil {
+                model.selectedAnnotationID = nil
+                model.annotationDrag = nil
+                delegate?.overlaySelectionDidChange()
+            } else {
+                delegate?.overlayRequestsCancel()
+            }
         default:
             super.keyDown(with: event)
         }
@@ -346,11 +430,11 @@ final class CaptureOverlayView: NSView {
 
     private func annotateMouseDown(at globalPoint: CGPoint) {
         guard let selection = model.selection,
-              selection.insetBy(dx: -2, dy: -2).contains(globalPoint) else { return }
+              selection.insetBy(dx: -2, dy: -2).contains(globalPoint),
+              case .annotate(let tool) = model.activeTool else { return }
         let local = annotateLocal(globalPoint, selection: selection)
         model.annotateDragStart = local
 
-        let tool = model.annotateTool
         let style = model.annotateStyle
         switch tool {
         case .numberedMarker:
@@ -440,12 +524,21 @@ final class CaptureOverlayView: NSView {
     }
 
     /// 绘制标注（已提交 + 草稿）：CTM 平移到选区本地坐标系，复用统一渲染管线。
+    /// 马赛克/模糊需要选区像素快照——选区变化时懒重建（rect 比对）。
     private func drawAnnotations(_ context: CGContext, selection: CGRect) {
         guard selection.intersects(screenFrame) else { return }
-        // 马赛克/模糊预览数据源：选区内容像素快照（控制器在进入标注模式时准备）
         var all = model.annotations
         if let draft = model.draftAnnotation { all.append(draft) }
         guard !all.isEmpty else { return }
+
+        let needsEffect = all.contains { annotation in
+            if case .mosaic = annotation.geometry { return true }
+            if case .blur = annotation.geometry { return true }
+            return false
+        }
+        if needsEffect {
+            refreshSelectionBaseImage(for: selection)
+        }
 
         context.saveGState()
         context.translateBy(
@@ -454,6 +547,71 @@ final class CaptureOverlayView: NSView {
         )
         AnnotationRenderer.draw(all, baseImage: model.selectionBaseImage, in: context)
         context.restoreGState()
+    }
+
+    /// 选区变化后按需重建选区像素快照（取相交面积最大的显示器快照裁剪）。
+    private func refreshSelectionBaseImage(for selection: CGRect) {
+        if model.selectionBaseImageForRect == selection, model.selectionBaseImage != nil { return }
+        model.selectionBaseImage = nil
+        model.selectionBaseImageForRect = nil
+        guard let snapshot = model.snapshots.max(by: { a, b in
+            a.frame.intersection(selection).width * a.frame.intersection(selection).height
+                < b.frame.intersection(selection).width * b.frame.intersection(selection).height
+        }) else { return }
+        let intersection = snapshot.frame.intersection(selection)
+        guard !intersection.isNull, intersection.width > 1, intersection.height > 1 else { return }
+        let imageSize = CGSize(width: snapshot.image.width, height: snapshot.image.height)
+        let pixelRect = ScreenGeometry.pixelRect(
+            logicalRect: intersection,
+            displayFrame: snapshot.frame,
+            imagePixelSize: imageSize
+        )
+        if let clamped = ScreenGeometry.clampedPixelRect(pixelRect, in: imageSize) {
+            model.selectionBaseImage = snapshot.image.cropping(to: clamped)
+            model.selectionBaseImageForRect = selection
+        }
+    }
+
+    /// 命中测试已画标注（从最上层开始；全局坐标 → 选区本地）。
+    private func annotationHitTest(at globalPoint: CGPoint, in selection: CGRect) -> Annotation? {
+        let local = annotateLocal(globalPoint, selection: selection)
+        for annotation in model.annotations.reversed() {
+            if annotation.hitTest(contains: local, tolerance: 6) {
+                return annotation
+            }
+        }
+        return nil
+    }
+
+    /// 无选区悬停的全屏虚线十字参考线。
+    private func drawDashedCrosshair(_ context: CGContext, at global: CGPoint) {
+        let local = CGPoint(x: global.x - screenFrame.minX, y: global.y - screenFrame.minY)
+        context.setStrokeColor(NSColor.white.withAlphaComponent(0.55).cgColor)
+        context.setLineWidth(0.8)
+        context.setLineDash(phase: 0, lengths: [4, 4])
+        context.beginPath()
+        context.move(to: CGPoint(x: local.x, y: 0))
+        context.addLine(to: CGPoint(x: local.x, y: bounds.height))
+        context.move(to: CGPoint(x: 0, y: local.y))
+        context.addLine(to: CGPoint(x: bounds.width, y: local.y))
+        context.strokePath()
+        context.setLineDash(phase: 0, lengths: [])
+    }
+
+    /// 选中标注的虚线包围盒（含外扩边距）。
+    private func drawAnnotationSelectionBox(_ context: CGContext, annotation: Annotation, selection: CGRect) {
+        let box = annotation.boundingBox().insetBy(dx: -4, dy: -4)
+        let local = CGRect(
+            x: box.minX + selection.minX - screenFrame.minX,
+            y: box.minY + selection.minY - screenFrame.minY,
+            width: box.width,
+            height: box.height
+        )
+        context.setStrokeColor(NSColor.systemBlue.withAlphaComponent(0.9).cgColor)
+        context.setLineWidth(1)
+        context.setLineDash(phase: 0, lengths: [3, 3])
+        context.stroke(local)
+        context.setLineDash(phase: 0, lengths: [])
     }
 
     // MARK: - 绘制细节

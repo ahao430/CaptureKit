@@ -16,6 +16,7 @@
 		0EA4285E6261E7E566326181 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 68D169D45B4C494ACE65258B /* Assets.xcassets */; };
 		13A9E2AECFA7B9D14AA273F1 /* PinnedImageMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = A47A8D122460C28018D41273 /* PinnedImageMath.swift */; };
 		15D7B8813E6380515DFA7853 /* AutoScroller.swift in Sources */ = {isa = PBXBuildFile; fileRef = F57EC5432E471DD13140B346 /* AutoScroller.swift */; };
+		1EB694E189D25B715C31DFF7 /* OverlayToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8CA1459EFA3E83C7AF421C6 /* OverlayToolTests.swift */; };
 		1FE5CF4FA2AE8133ADF83937 /* ScreenRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 987EA4A164509A6319B48500 /* ScreenRecorder.swift */; };
 		222BD2991E3B3E9CEF453050 /* ScreenGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C3FDBFAEE689E783F0C1706 /* ScreenGeometryTests.swift */; };
 		265CF7BC1361004E052A62C4 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 12894E5DC7D588D791AEBC5D /* Sparkle */; };
@@ -99,7 +100,6 @@
 		EBDDEB0E5E7C46374DC401E6 /* PixelColorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06DB94727BFB1393E3DB73F7 /* PixelColorTests.swift */; };
 		ED60193E05ACCA5470617B29 /* ScreenGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD94C1AC535E87E743EE5A16 /* ScreenGeometry.swift */; };
 		EE201B3B1F1B0351ED08B993 /* RecordingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F236D6B3CF43D1CF1059B59 /* RecordingSession.swift */; };
-		FDBC78D1750199B94E312EC2 /* AnnotateToolPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B04E727F4A13E44114EBE8A2 /* AnnotateToolPanel.swift */; };
 		FF1C7A36DEEF0034954A3F73 /* ScreenCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 399D5500BF91831696FED1DA /* ScreenCaptureEngine.swift */; };
 /* End PBXBuildFile section */
 
@@ -175,11 +175,11 @@
 		A535E77B64376BCD49ED5157 /* OverlayAnnotationExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayAnnotationExporter.swift; sourceTree = "<group>"; };
 		A9273ED9887F758400CB47AA /* AnnotationExtensionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationExtensionTests.swift; sourceTree = "<group>"; };
 		ACA1BBD3957AFBDEB04EBFDC /* TranslocationChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslocationChecker.swift; sourceTree = "<group>"; };
-		B04E727F4A13E44114EBE8A2 /* AnnotateToolPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotateToolPanel.swift; sourceTree = "<group>"; };
 		B0E534DF02DA7A065F4874AB /* CaptureKitError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureKitError.swift; sourceTree = "<group>"; };
 		B44F51993A44529E2D889973 /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
 		B6DD44E87FF6EFA9F71071D0 /* EditorDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDocument.swift; sourceTree = "<group>"; };
 		B7FB9CCDC1CED61D2B2E21FF /* UpdateConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateConfigTests.swift; sourceTree = "<group>"; };
+		B8CA1459EFA3E83C7AF421C6 /* OverlayToolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayToolTests.swift; sourceTree = "<group>"; };
 		BDA9FBC3FA4F0EF5F07F08A6 /* PixelBufferCropper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PixelBufferCropper.swift; sourceTree = "<group>"; };
 		C36FF723662C5DF540C66FDD /* SelectionToolbarPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionToolbarPanel.swift; sourceTree = "<group>"; };
 		C399A9D27C68E36677CB7D54 /* SettingsRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRootView.swift; sourceTree = "<group>"; };
@@ -245,6 +245,7 @@
 				CFFA91910D0C16F9AE10868D /* HotkeyDescriptorTests.swift */,
 				3C8252993BFB497424B1D18F /* OCRTests.swift */,
 				A0DF750AF219CF9D908CCCD3 /* OverlayAnnotationExporterTests.swift */,
+				B8CA1459EFA3E83C7AF421C6 /* OverlayToolTests.swift */,
 				9BE5C67910D1106DE2869632 /* Phase6Tests.swift */,
 				17E059A7C33FBCB5461A314D /* PinnedImageMathTests.swift */,
 				06DB94727BFB1393E3DB73F7 /* PixelColorTests.swift */,
@@ -513,7 +514,6 @@
 		A6B94B51FBACFA8661DD7F29 /* CaptureOverlay */ = {
 			isa = PBXGroup;
 			children = (
-				B04E727F4A13E44114EBE8A2 /* AnnotateToolPanel.swift */,
 				C4461EC2C79FFEC0569B669D /* CaptureOverlayController.swift */,
 				A50CCD7FE5476D2F88E28F19 /* CaptureOverlayView.swift */,
 				ECBCA8FE2B4E137DCBDA98C7 /* CaptureOverlayWindow.swift */,
@@ -746,6 +746,7 @@
 				E91FD137D8C8D54EAC819682 /* HotkeyDescriptorTests.swift in Sources */,
 				C0276A4F262BE769284110AF /* OCRTests.swift in Sources */,
 				9225DD03EDC9280D7F7463EA /* OverlayAnnotationExporterTests.swift in Sources */,
+				1EB694E189D25B715C31DFF7 /* OverlayToolTests.swift in Sources */,
 				32348EFB85ED16F210A73AD5 /* Phase6Tests.swift in Sources */,
 				753E3F007A90ECFAEAD17697 /* PinnedImageMathTests.swift in Sources */,
 				EBDDEB0E5E7C46374DC401E6 /* PixelColorTests.swift in Sources */,
@@ -762,7 +763,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FDBC78D1750199B94E312EC2 /* AnnotateToolPanel.swift in Sources */,
 				E9C3BE5F94E4F944FB9C2A4A /* Annotation.swift in Sources */,
 				D08E8376FD340DBF61ECC905 /* AnnotationCanvasView.swift in Sources */,
 				D3D01F2D32B89C59590FE209 /* AnnotationInspectorView.swift in Sources */,

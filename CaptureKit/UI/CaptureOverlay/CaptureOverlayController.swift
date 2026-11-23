@@ -60,7 +60,6 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
     private var views: [CaptureOverlayView] = []
     private let model = OverlaySelectionModel()
     private var toolbar: SelectionToolbarPanel?
-    private var annotatePanel: AnnotateToolPanel?
     private var textEntryPanel: OverlayTextEntryPanel?
 
     /// 展示期间是否允许再次 present（防重入）
@@ -91,9 +90,48 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
         resetAnnotateState()
 
         let toolbarPanel = SelectionToolbarPanel()
-        toolbarPanel.onCopy = { [weak self] in self?.finish(.region(self?.model.selection ?? .zero, action: .copy)) }
-        // 编辑 = 进入选区内直接标注（批次 2；完整编辑器走右键菜单）
-        toolbarPanel.onEdit = { [weak self] in self?.enterAnnotateMode() }
+        toolbarPanel.onToolChange = { [weak self] tool in
+            guard let self else { return }
+            self.model.activeTool = tool
+            // 切换到选择工具时清理未提交草稿
+            if tool.isSelect {
+                self.model.draftAnnotation = nil
+                self.model.annotateDragStart = nil
+            } else {
+                self.model.selectedAnnotationID = nil
+            }
+            self.overlaySelectionDidChange()
+        }
+        toolbarPanel.onColorChange = { [weak self] color in
+            guard let self else { return }
+            self.model.annotateStyle.color = color
+            // 选中标注时同步改色（钉钉行为）
+            if let id = self.model.selectedAnnotationID,
+               let index = self.model.annotations.firstIndex(where: { $0.id == id }) {
+                self.model.annotations[index].style.color = color
+            }
+            self.overlaySelectionDidChange()
+        }
+        toolbarPanel.onWidthChange = { [weak self] width in
+            guard let self else { return }
+            self.model.annotateStyle.lineWidth = width.value
+            if let id = self.model.selectedAnnotationID,
+               let index = self.model.annotations.firstIndex(where: { $0.id == id }) {
+                self.model.annotations[index].style.lineWidth = width.value
+            }
+            self.overlaySelectionDidChange()
+        }
+        toolbarPanel.onUndo = { [weak self] in
+            guard let self else { return }
+            if let id = self.model.selectedAnnotationID {
+                self.model.annotations.removeAll { $0.id == id }
+                self.model.selectedAnnotationID = nil
+            } else if !self.model.annotations.isEmpty {
+                self.model.annotations.removeLast()
+            }
+            self.overlaySelectionDidChange()
+        }
+        toolbarPanel.onCopy = { [weak self] in self?.finishAnnotated() }
         toolbarPanel.onSave = { [weak self] in self?.finish(.region(self?.model.selection ?? .zero, action: .save)) }
         toolbarPanel.onRecognizeText = { [weak self] in
             guard let selection = self?.model.selection else { return }
@@ -113,24 +151,6 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
         }
         toolbarPanel.onCancel = { [weak self] in self?.finish(.cancelled) }
         self.toolbar = toolbarPanel
-
-        // 标注模式工具面板（进入标注模式时显示）
-        let annotate = AnnotateToolPanel()
-        annotate.onToolChange = { [weak self] tool in
-            self?.model.annotateTool = tool
-        }
-        annotate.onColorChange = { [weak self] color in
-            guard let self else { return }
-            self.model.annotateStyle.color = color
-        }
-        annotate.onUndo = { [weak self] in
-            guard let self, !self.model.annotations.isEmpty else { return }
-            self.model.annotations.removeLast()
-            self.overlaySelectionDidChange()
-        }
-        annotate.onFinish = { [weak self] in self?.finishAnnotated() }
-        annotate.onExit = { [weak self] in self?.exitAnnotateMode() }
-        self.annotatePanel = annotate
 
         for screen in NSScreen.screens {
             let view = CaptureOverlayView(model: model, screenFrame: screen.frame)
@@ -180,8 +200,6 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
         }
         toolbar?.orderOut(nil)
         toolbar = nil
-        annotatePanel?.orderOut(nil)
-        annotatePanel = nil
         textEntryPanel?.orderOut(nil)
         textEntryPanel = nil
         for window in windows {
@@ -208,8 +226,8 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
 
     func overlayRequestsConfirm(action: CaptureDeliveryAction) {
         guard let selection = model.selection else { return }
-        // 标注模式下 Enter = 完成并复制（含标注）
-        if model.annotateMode {
+        // Enter：有标注 = 复制含标注的合成截图（一体化工具栏语义）
+        if model.hasAnnotations {
             finishAnnotated()
             return
         }
@@ -217,11 +235,7 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
     }
 
     func overlayRequestsCancel() {
-        // 标注模式 → 先退出标注（保留已画内容）；已有选区 → 清除（回到选择状态）；无选区 → 取消整个 Overlay
-        if model.annotateMode {
-            exitAnnotateMode()
-            return
-        }
+        // 已有选区 → 清除（回到选择状态）；无选区 → 取消整个 Overlay
         if model.selection != nil {
             clearSelection()
         } else {
@@ -233,32 +247,18 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
         finish(.windowAt(globalPoint))
     }
 
-    // MARK: - 选区内直接标注（批次 2）
-
-    /// 进入标注模式：准备选区像素快照（马赛克/模糊预览数据源）并切换工具面板。
-    private func enterAnnotateMode() {
-        guard model.selection != nil else { return }
-        model.annotateMode = true
-        refreshSelectionBaseImage()
-        overlaySelectionDidChange()
-    }
-
-    /// 退出标注模式（保留已画标注，返回选区工具栏）。
-    private func exitAnnotateMode() {
-        model.annotateMode = false
-        model.draftAnnotation = nil
-        model.annotateDragStart = nil
-        textEntryPanel?.orderOut(nil)
-        overlaySelectionDidChange()
-    }
+    // MARK: - 一体化标注（DingTalk 式）
 
     /// 标注状态复位（选区重建 / Overlay 收起时）。
     private func resetAnnotateState() {
-        model.annotateMode = false
+        model.activeTool = .select
         model.annotations = []
         model.draftAnnotation = nil
         model.annotateDragStart = nil
+        model.selectedAnnotationID = nil
+        model.annotationDrag = nil
         model.selectionBaseImage = nil
+        model.selectionBaseImageForRect = nil
     }
 
     /// 清除选区（连同已画标注一并丢弃）。
@@ -269,45 +269,13 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
         overlaySelectionDidChange()
     }
 
-    /// 完成标注：有标注走合成导出，无标注退化为普通复制。
+    /// 完成交付：有标注走合成导出，无标注退化为普通复制。
     private func finishAnnotated() {
         guard let selection = model.selection else { return }
         if model.annotations.isEmpty {
             finish(.region(selection, action: .copy))
         } else {
             finish(.regionAnnotated(selection, model.annotations))
-        }
-    }
-
-    /// 从屏幕快照裁剪选区内容（标注效果实时预览数据源；选区变化时重算）。
-    private func refreshSelectionBaseImage() {
-        guard let selection = model.selection, !model.snapshots.isEmpty else {
-            model.selectionBaseImage = nil
-            return
-        }
-        // 取与选区相交面积最大的显示器快照
-        guard let snapshot = model.snapshots.max(by: { a, b in
-            a.frame.intersection(selection).width * a.frame.intersection(selection).height
-                < b.frame.intersection(selection).width * b.frame.intersection(selection).height
-        }) else {
-            model.selectionBaseImage = nil
-            return
-        }
-        let intersection = snapshot.frame.intersection(selection)
-        guard !intersection.isNull, intersection.width > 1, intersection.height > 1 else {
-            model.selectionBaseImage = nil
-            return
-        }
-        let imageSize = CGSize(width: snapshot.image.width, height: snapshot.image.height)
-        let pixelRect = ScreenGeometry.pixelRect(
-            logicalRect: intersection,
-            displayFrame: snapshot.frame,
-            imagePixelSize: imageSize
-        )
-        if let clamped = ScreenGeometry.clampedPixelRect(pixelRect, in: imageSize) {
-            model.selectionBaseImage = snapshot.image.cropping(to: clamped)
-        } else {
-            model.selectionBaseImage = nil
         }
     }
 
@@ -383,19 +351,15 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
             return menuItem
         }
 
-        // 标注模式：专属菜单（复制含标注 / 撤销 / 退出标注）
-        if model.annotateMode {
-            menu.addItem(item("复制（含标注）⏎", action: #selector(menuCopy)))
-            menu.addItem(item("撤销上一条 ⌘Z", action: #selector(menuUndoAnnotation)))
-            menu.addItem(item("退出标注 ✕", action: #selector(menuExitAnnotate)))
-            menu.addItem(.separator())
-            menu.addItem(item("取消 ⎋", action: #selector(menuCancel)))
-            popUp(menu, at: globalPoint)
-            return
+        // 标注相关（有已画标注时可用）
+        if model.hasAnnotations {
+            menu.addItem(item("撤销上一条标注 ⌘Z", action: #selector(menuUndoAnnotation)))
+        }
+        if model.selectedAnnotationID != nil {
+            menu.addItem(item("删除选中标注 ⌫", action: #selector(menuDeleteSelectedAnnotation)))
         }
 
-        menu.addItem(item("复制 ⏎", action: #selector(menuCopy)))
-        menu.addItem(item("标注（画框/箭头/文字）", action: #selector(menuAnnotate)))
+        menu.addItem(item("复制 ⏎（含标注）", action: #selector(menuCopy)))
         menu.addItem(item("在编辑器中打开", action: #selector(menuEdit)))
         menu.addItem(item("保存", action: #selector(menuSave)))
         menu.addItem(item("识别文字（OCR）", action: #selector(menuRecognize)))
@@ -422,23 +386,18 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
 
     // MARK: - 右键菜单动作
 
-    @objc private func menuCopy() {
-        // 标注模式下复制 = 合成含标注的截图
-        if model.annotateMode {
-            finishAnnotated()
-            return
-        }
-        finish(.region(model.selection ?? .zero, action: .copy))
-    }
+    @objc private func menuCopy() { finishAnnotated() }
     @objc private func menuUndoAnnotation() {
         guard !model.annotations.isEmpty else { return }
         model.annotations.removeLast()
+        model.selectedAnnotationID = nil
         overlaySelectionDidChange()
     }
-    @objc private func menuExitAnnotate() { exitAnnotateMode() }
-    @objc private func menuAnnotate() {
-        guard !model.annotateMode else { return }
-        enterAnnotateMode()
+    @objc private func menuDeleteSelectedAnnotation() {
+        guard let id = model.selectedAnnotationID else { return }
+        model.annotations.removeAll { $0.id == id }
+        model.selectedAnnotationID = nil
+        overlaySelectionDidChange()
     }
     @objc private func menuEdit() { finish(.region(model.selection ?? .zero, action: .edit)) }
     @objc private func menuSave() { finish(.region(model.selection ?? .zero, action: .save)) }
@@ -506,29 +465,10 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
     private func updateToolbar() {
         guard let toolbar else { return }
 
-        // 标注模式：显示标注工具面板（绘制草稿时避让）
-        if model.annotateMode {
-            toolbar.orderOut(nil)
-            guard let annotatePanel,
-                  let selection = model.selection, !model.isAnnotateDrafting else {
-                annotatePanel?.orderOut(nil)
-                return
-            }
-            let center = CGPoint(x: selection.midX, y: selection.midY)
-            let screen = NSScreen.screens.first {
-                $0.frame.insetBy(dx: -2, dy: -2).contains(center)
-            } ?? NSScreen.main
-            guard let screen else { return }
-            annotatePanel.position(below: selection, in: screen)
-            if !annotatePanel.isVisible {
-                annotatePanel.orderFrontRegardless()
-            }
-            return
-        }
-
-        annotatePanel?.orderOut(nil)
+        // 一体化工具栏：有选区且不在交互/绘制草稿中时显示
         guard presentedMode.showsToolbar,
-              let selection = model.selection, !model.isInteracting else {
+              let selection = model.selection,
+              !model.isInteracting, !model.isAnnotateDrafting, model.annotationDrag == nil else {
             toolbar.orderOut(nil)
             return
         }
@@ -539,6 +479,7 @@ final class CaptureOverlayController: CaptureOverlayViewDelegate {
         } ?? NSScreen.main
         guard let screen else { return }
 
+        toolbar.reflect(tool: model.activeTool, style: model.annotateStyle)
         toolbar.position(below: selection, in: screen)
         if !toolbar.isVisible {
             toolbar.orderFrontRegardless()
