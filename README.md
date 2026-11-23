@@ -2,11 +2,13 @@
 
 > macOS 内容捕获与复用工具 — Capture. Organize. Reuse.
 
-轻量、原生、注重效率的菜单栏应用：截图、录屏（后续）、剪贴板历史（后续）、统一内容管理（后续）。
+**在线主页（下载 / 功能介绍 / 安装教程）：<https://ahao430.github.io/CaptureKit/>**
+
+轻量、原生、注重效率的菜单栏应用：截图、录屏（后续）、剪贴板历史（后续）、统一内容管理（后续）。双语主页，默认中文。
 
 ## 下载安装
 
-1. 从 [GitHub Releases](https://github.com/ahao430/CaptureKit/releases) 下载最新 `CaptureKit.dmg`（Homepage 的下载按钮始终指向最新版）。
+1. 从 [在线主页](https://ahao430.github.io/CaptureKit/) 或 [GitHub Releases](https://github.com/ahao430/CaptureKit/releases) 下载最新 `CaptureKit.dmg`（两处的下载按钮始终指向最新版）。
 2. 打开 DMG，把 CaptureKit 拖入 Applications。
 3. CaptureKit 暂未做 Apple 公证，首次打开可能被 Gatekeeper 拦截。拖入 Applications 后在终端执行：
 
