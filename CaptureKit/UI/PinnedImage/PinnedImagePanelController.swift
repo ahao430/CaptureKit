@@ -139,12 +139,12 @@ final class PinnedImageView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
-        // 图像铺满（内容尺寸始终与图像等比：缩放作用于窗口）
+        // 图像铺满（内容尺寸始终与图像等比：缩放作用于窗口）。
+        // 本视图为标准非翻转 NSView（y 向上），CGImage 直接绘制即为正确方向，
+        // 不要额外翻转（此前多翻一次导致贴图上下颠倒）。
         context.saveGState()
         context.clip(to: bounds)
-        context.translateBy(x: 0, y: bounds.height)
-        context.scaleBy(x: 1, y: -1)
-        context.draw(image, in: CGRect(x: 0, y: 0, width: bounds.width, height: bounds.height))
+        context.draw(image, in: bounds)
         context.restoreGState()
 
         // 细边框
