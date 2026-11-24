@@ -12,7 +12,7 @@ final class OverlayModePanel: NSPanel {
 
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 52),
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 58),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -33,7 +33,7 @@ final class OverlayModePanel: NSPanel {
 
     private func buildsContent() {
         // 深色毛玻璃背景
-        let effect = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: 380, height: 52))
+        let effect = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: 380, height: 58))
         effect.material = .hudWindow
         effect.blendingMode = .behindWindow
         effect.state = .active
@@ -41,36 +41,38 @@ final class OverlayModePanel: NSPanel {
         effect.layer?.cornerRadius = 16
         effect.layer?.masksToBounds = true
         // 细高光描边
-        let border = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 52))
+        let border = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 58))
         border.wantsLayer = true
         border.layer?.borderColor = NSColor.white.withAlphaComponent(0.14).cgColor
         border.layer?.borderWidth = 1
         border.layer?.cornerRadius = 16
-
-        let handle = NSImageView(image: NSImage(systemSymbolName: "line.3.horizontal", accessibilityDescription: "拖动") ?? NSImage())
-        handle.contentTintColor = .white
-        handle.alphaValue = 0.55
-        handle.translatesAutoresizingMaskIntoConstraints = false
 
         for intent in intents {
             let button = NSButton(title: intent.displayName, target: self, action: #selector(intentTapped(_:)))
             button.font = .systemFont(ofSize: 14, weight: .medium)
             button.isBordered = false
             button.wantsLayer = true
-            button.layer?.cornerRadius = 10
+            button.layer?.cornerRadius = 7
             button.contentTintColor = .white
             button.toolTip = intent.displayName
             button.tag = intents.firstIndex(of: intent) ?? 0
+            button.translatesAutoresizingMaskIntoConstraints = false
+            // 选中态白卡：水平左右各 18pt、上下充裕的内边距
+            let titleWidth = (intent.displayName as NSString).size(
+                withAttributes: [.font: button.font!]
+            ).width
+            button.widthAnchor.constraint(equalToConstant: ceil(titleWidth) + 36).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 36).isActive = true
             buttons[intent] = button
         }
 
-        let stack = NSStackView(views: [handle] + intents.map { buttons[$0]! })
+        let stack = NSStackView(views: intents.map { buttons[$0]! })
         stack.orientation = .horizontal
         stack.spacing = 4
         stack.edgeInsets = NSEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 52))
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 58))
         container.addSubview(effect)
         container.addSubview(border)
         container.addSubview(stack)
